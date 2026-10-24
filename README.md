@@ -25,6 +25,9 @@ Documentação por recurso:
 [transferências](docs/transfers.md) · [FindPort](docs/findport.md) ·
 [câmera](docs/camera.md) · [digitalização](docs/scanning.md) ·
 [impressão](docs/printing.md) · [Cloudflare Tunnel](docs/cloudflare-tunnel.md) ·
+[comandos remotos](docs/system-intents.md) ·
+[limites HTTP](docs/http-limits.md) ·
+[validação Windows](docs/windows-validation.md) ·
 [estado do projeto e melhorias](docs/project-status.md).
 
 ## Clone privado para colaboradores autorizados
@@ -74,7 +77,11 @@ No Linux:
 ```
 
 No Windows, execute `start.bat`. Os scripts criam o ambiente virtual quando
-necessário, instalam as dependências e iniciam o aplicativo. Também é possível
+necessário, verificam as dependências fixadas e interrompem a abertura se a
+instalação falhar. Ambientes existentes incompatíveis são preservados.
+Use `start.bat --check` ou `./start.sh --check` para conferir um ambiente já
+criado sem instalar nem abrir a interface. Veja [instalação e limites de
+validação](docs/installation.md). Também é possível
 instalar manualmente:
 
 ```bash
@@ -97,6 +104,6 @@ recursos disponíveis.
 
 ## Planejamento e próximos passos
 
-O [roadmap](ROADMAP.md) registra o progresso das melhorias Android. A validação
-da integração no Windows continua pendente; pareamento e controle Android por
-Wi-Fi permanecem no backlog.
+O [roadmap](ROADMAP.md) registra as melhorias de segurança, HTTP, instalação e
+Android. A validação com dispositivos reais no Windows e a regressão nativa
+Linux das mudanças atuais continuam pendentes; Android por Wi-Fi fica no backlog.

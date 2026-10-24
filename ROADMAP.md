@@ -7,8 +7,188 @@
 
 O ServerPy HTTP Manager oferece compartilhamento e acesso a arquivos, rede e
 periféricos em um aplicativo desktop Python/PySide6. A conectividade Android
-usa ADB autorizado pelo usuário; a próxima melhoria adicionará controle visual
-do aparelho via scrcpy.
+usa ADB autorizado pelo usuário e já oferece controle visual via scrcpy,
+com validação real no Windows ainda pendente.
+
+## Fluxo de melhorias: segurança, estabilidade e entrega
+
+Este fluxo organiza os achados da análise de 2026-10-24. As caixas e evidências
+de cada tarefa distinguem implementação concluída de trabalho pendente.
+Não há novas datas de entrega definidas.
+
+**Ordem:** proteção de comandos → limites HTTP → instalação e compatibilidade
+→ validação real e release → manutenção gradual → novos recursos Android.
+
+### Etapa 1 — Proteger a execução de comandos
+
+- [x] `SEC-001` — Exigir autenticação para habilitar intents
+  - **Prioridade:** Crítica; primeira entrega.
+  - **Problema:** `/api/intent` permite executar comandos com `shell=True`
+    quando intents estão habilitados, inclusive sem login configurado.
+  - **Critérios:** rejeitar essa configuração no núcleo do servidor e orientar
+    o usuário na interface; exigir acesso de administrador na rota; testar
+    ausência de credenciais, credenciais inválidas, usuário de pasta e
+    administrador autorizado. Documentar o alcance da execução de comandos.
+  - **Implementado em 2026-10-24:** validação antes de abrir a porta, orientação
+    traduzida na interface e revalidação administrativa na rota.
+  - **Referências:** [handlers](src/core/handlers.py),
+    [servidor](src/core/server.py), [controller](src/gui/controller.py).
+- [x] `SEC-002` — Limitar a execução de intents
+  - **Prioridade:** Alta.
+  - **Dependências:** `SEC-001`.
+  - **Critérios:** definir timeout, limite de saída e concorrência; tratar
+    encerramento e erros sem bloquear a interface; avaliar comandos permitidos
+    e uso de argumentos sem shell, documentando a política escolhida e a
+    compatibilidade com comandos existentes.
+  - **Implementado em 2026-10-24:** uma execução por servidor, timeout de 15 s,
+    saída combinada de 1 MiB, corpo de 64 KiB e entrada padrão fechada.
+    Shell preservado por compatibilidade, restrito ao administrador geral.
+    Encerramento de descendentes é uma tentativa, não isolamento de processos.
+  - **Validação direcionada:** 12 testes de autorização/execução e 12 testes
+    de permissões/perfis/interface aprovados em Windows, incluindo timeout e
+    limite de saída com processos reais e orientação traduzida antes de iniciar.
+  - **Referências:** [executor](src/core/intents.py),
+    [testes](tests/test_intents.py), [política de uso](docs/system-intents.md).
+  - **Regressão em Windows:** 277 testes, 273 aprovados; permanecem as 3 falhas
+    de permissões Linux e 1 erro de autostart anteriores, registrados em `QA-001`.
+
+### Etapa 2 — Controlar o consumo de recursos HTTP
+
+- [x] `HTTP-001` — Limitar corpos POST e uploads
+  - **Prioridade:** Alta.
+  - **Dependências:** `SEC-001`.
+  - **Critérios:** definir limites explícitos por tipo de operação; validar
+    `Content-Length`, rejeitar excesso com 413 e aplicar timeout de leitura;
+    cobrir corpos inválidos/incompletos e preservar arquivos existentes em
+    uploads interrompidos. Evitar leitura integral de uploads em memória.
+  - **Implementado em 2026-10-24:** JSON de até 1 MiB, comandos de até 64 KiB,
+    uploads de até 4 GiB, validação compartilhada de framing e prazos de leitura.
+    Uploads permanecem em blocos e só são publicados após conclusão.
+- [x] `HTTP-002` — Limitar conexões e estado de rate limit
+  - **Prioridade:** Alta.
+  - **Dependências:** `HTTP-001`.
+  - **Critérios:** limitar handlers simultâneos, encerrar conexões ociosas e
+    expirar entradas antigas por IP; verificar que saturação tem resposta
+    controlada e que o servidor volta a atender após liberar recursos.
+  - **Implementado em 2026-10-24:** até 16 conexões, timeout de inatividade,
+    handshake TLS na thread limitada e histórico com até 4096 IPs, expirando
+    após 60 s. Saturação retorna 503/fecha conexão; o estado de taxa cheio
+    retorna 429 para novos IPs.
+- [x] `HTTP-003` — Reduzir memória usada na geração de ZIP
+  - **Prioridade:** Alta.
+  - **Dependências:** `HTTP-002`.
+  - **Critérios:** substituir o ZIP integral em memória por arquivo temporário
+    ou streaming; definir limites e limpeza após erro/cancelamento; validar
+    arquivos grandes, autorização e preservação dos arquivos de origem.
+  - **Implementado em 2026-10-24:** arquivo temporário em disco, uma operação
+    por vez, até 1 GiB de origem/resultado, 10.000 entradas e 120 s de geração;
+    envio pelo monitor de transferências com cancelamento e limpeza do temporário.
+  - **Política da etapa:** [limites e configuração](docs/http-limits.md).
+  - **Validação em Windows:** 9 testes novos de recursos HTTP aprovados;
+    regressão completa com 286 testes, 282 aprovados e os mesmos 4 problemas
+    anteriores de compatibilidade registrados em `QA-001`.
+  - **Referências da etapa:** [handlers](src/core/handlers.py),
+    [servidor](src/core/server.py), [transferências](src/core/transfers.py).
+
+### Etapa 3 — Tornar instalação e testes consistentes
+
+- [~] `REL-001` — Alinhar launchers e dependências
+  - **Prioridade:** Alta.
+  - **Dependências:** etapa 2 concluída para o marco de estabilização.
+  - **Critérios:** conferir todas as dependências, incluindo qrcode e paramiko;
+    interromper o launcher quando a instalação falhar; definir versões
+    testadas/reproduzíveis e validar primeiro início e ambiente existente
+    incompleto no Windows e Linux.
+  - **Implementado em 2026-10-24:** preparador compartilhado com verificação de
+    versões/imports, instalação pelo Python do venv, interrupção em erro e
+    revalidação em processo novo. Versões diretas/indiretas fixadas; ambientes
+    incompatíveis preservados e modo `--check` nos dois launchers.
+  - **Validado:** Windows e Git Bash, falhas de instalação simuladas, caminhos
+    com espaços, imports e `pip check`. Suíte completa: 296 testes aprovados em
+    Windows, sem falhas ou erros. Sem bundles nesta etapa.
+  - **Instalação limpa Windows:** dependências instaladas em venv novo sobre
+    snapshot dos fontes locais, com manifesto SHA-256, imports, `pip check` e
+    launcher verificados; 296 testes aprovados no ambiente novo. Veja a
+    [validação Windows](docs/windows-validation.md).
+  - **Pendente:** instalação e validação nativas Linux. WSL indisponível
+    nesta máquina; Git Bash não substitui Linux.
+  - **Guia:** [instalação e evidências](docs/installation.md).
+  - **Referências:** [Windows](start.bat), [Linux](start.sh),
+    [requisitos](requirements.txt).
+- [~] `QA-001` — Corrigir os testes entre plataformas
+  - **Prioridade:** Alta.
+  - **Critérios:** corrigir isolamento/simulação do autostart Linux e as
+    verificações de permissões executáveis em Windows; executar a suíte nos
+    dois sistemas, registrando resultados e motivos de eventuais skips.
+    Distinguir falha do teste de defeito funcional antes de alterar produção.
+  - **Evidência em Windows, 2026-10-24:** 264 testes executados, 260 aprovados,
+    3 falhas de permissões executáveis e 1 erro no teste de autostart Linux.
+  - **Correção em 2026-10-24:** teste de autostart isolado no ramo Linux;
+    testes de executáveis verificam o chmod solicitado em Windows e os bits
+    reais quando executados em POSIX. Os quatro casos anteriores passaram no
+    Windows após corrigir as simulações, sem alterar os instaladores de produção.
+  - **Regressão atual em Windows:** 296 testes aprovados, sem falhas ou erros.
+  - **Pendente:** executar a suíte atual em Linux nativo.
+  - **Referências:** [Android](tests/test_android.py),
+    [autostart](tests/test_startup.py).
+- [x] `QA-002` — Tratar Unicode nos logs HTTP do Windows
+  - **Prioridade:** Alta.
+  - **Critérios:** reproduzir e corrigir o `UnicodeEncodeError` observado na
+    saída cp1252 durante a suíte; garantir que caracteres não representáveis
+    não interrompam o processamento da resposta HTTP e preservar a ocultação
+    de tokens nos logs.
+  - **Implementado em 2026-10-24:** fallback ASCII escapado após ocultar tokens;
+    teste HTTP real com saída cp1252 confirma resposta 404 completa e mantém
+    tokens de download ocultos em logs com Unicode.
+  - **Referência:** [handlers](src/core/handlers.py).
+
+### Etapa 4 — Validar uso real e preparar entrega privada
+
+- [~] `QA-003` — Validar fluxos reais no Windows
+  - **Prioridade:** Alta.
+  - **Dependências:** `REL-001`, `QA-001`, `QA-002`.
+  - **Critérios:** registrar instalação e abertura do app, autenticação,
+    permissões por pasta, transferência/cancelamento e recuperação de arquivos;
+    concluir o roteiro Android de `ANDR-007`. Registrar câmera, scanner e
+    impressora por dispositivo disponível, mantendo indisponíveis como pendentes.
+  - **Validado em 2026-10-24:** dez abas Qt em 980×760/1440×900, início/parada/
+    reinício pelo controller, login, permissões e upload/download/recuperação
+    em arquivos isolados. Interface Qt automatizada em modo offscreen.
+  - **Navegador:** Chrome em 1440 px e 390 px com eventos de toque, na raiz e
+    em pasta adicional; transferências, cancelamento, repetição, PWA, links e
+    reconexão aprovados. Visualizador de câmera validado com imagens sintéticas.
+  - **Android Windows:** ADB e scrcpy executáveis; Samsung SM-G990E autorizado
+    detectado. Controle manual, câmera/microfone, scanner e impressora físicos
+    continuam pendentes; `ANDR-007` permanece em andamento.
+  - **Roteiros/evidências:** [validação Windows](docs/windows-validation.md),
+    [instalação limpa](tests/run_clean_install.py),
+    [interface Qt](tests/run_desktop_smoke.py).
+- [ ] `REL-002` — Validar clone limpo e publicação privada
+  - **Prioridade:** Alta após estabilização.
+  - **Dependências:** etapas 1–3 e `QA-003`.
+  - **Critérios:** validar clone limpo, dependências, FindPort incluído,
+    documentação e ausência de credenciais/dados locais; registrar revisão e
+    resultados antes de concluir a publicação privada em `skavazza/serverpy-http`.
+    Distribuição pública e bundles continuam sujeitos aos termos de `LICENSE`.
+  - **Preparação local:** snapshot selecionado com manifesto de arquivos e
+    dependências instalado em venv novo. Clone de revisão publicada e publicação
+    privada ainda pendentes; snapshot local não conclui esta tarefa.
+
+### Etapa 5 — Reduzir o custo de manutenção
+
+- [ ] `MAINT-001` — Decompor módulos grandes gradualmente
+  - **Prioridade:** Média.
+  - **Dependências:** etapas 1–3.
+  - **Critérios:** separar rotas HTTP, montagem de configuração, armazenamento
+    e ferramentas de rede em mudanças pequenas; preservar contratos,
+    preferências, permissões e traduções; executar testes de regressão de cada
+    área alterada. Evitar uma reescrita geral.
+  - **Referências:** [handlers](src/core/handlers.py),
+    [controller](src/gui/controller.py), [armazenamento](src/gui/storage.py),
+    [rede](src/gui/network_tools.py).
+
+Novas funcionalidades, incluindo `ANDR-008`, vêm após a estabilização e a
+validação USB. O histórico Android abaixo permanece preservado.
 
 ## Marco atual: Controle visual Android por USB
 
@@ -75,7 +255,7 @@ do aparelho via scrcpy.
     instalação, autorização USB, limites e solução de problemas; rodar testes
     direcionados e a suíte de regressão aplicável.
   - **Dependências:** `ANDR-006`
-  - **Validado:** testes automatizados e suíte completa (253 testes; 4 ignorados).
+  - **Validação anterior em Linux:** 257 testes executados, 253 aprovados e 4 ignorados.
   - **Observação:** o teste com aparelho revelou que o ADB bundled no scrcpy
     foi extraído sem permissão de execução no Linux; o instalador agora preserva
     modos executáveis e repara instalações gerenciadas já existentes. A
@@ -83,7 +263,9 @@ do aparelho via scrcpy.
     bundled em 0775. `adb version` e `adb devices -l` passaram, com o Samsung
     SM_G990E detectado como autorizado. O usuário confirmou que a janela scrcpy
     abriu e permite controlar o aparelho.
-  - **Pendente:** validar Windows em execução.
+  - **Windows em 2026-10-24:** ADB 1.0.41 e scrcpy 5.0.1 responderam; Samsung
+    SM-G990E detectado como autorizado. Ainda falta validar espelhamento e
+    controles manualmente no Windows.
 - [x] `ANDR-009` — Organizar e ampliar as configurações da sessão scrcpy <!-- completed: 2026-10-24 02:10 -->
   - **Prioridade:** Alta
   - **Critérios:** agrupar configurações em vídeo e comportamento da sessão;
@@ -121,7 +303,10 @@ do aparelho via scrcpy.
   - **Prioridade:** Backlog
   - **Critérios:** parear com autorização do usuário, conectar e reconectar
     dispositivos Android compatíveis sem remover o suporte USB.
-  - **Dependências:** `ANDR-007`
+  - **Dependências:** `ANDR-007` e etapas 1–4 do fluxo de melhorias.
+  - **Limites:** usar pareamento moderno iniciado pelo usuário (`adb pair` e
+    endpoint TLS anunciado); não ativar debugging ou `adb tcpip 5555`
+    silenciosamente.
 
 ## Decisões e notas
 

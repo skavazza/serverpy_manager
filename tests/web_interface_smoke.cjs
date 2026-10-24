@@ -81,10 +81,12 @@ const path = require('node:path');
     assert.equal(await evaluate("transfers.find(item => item.name === 'queued-upload.txt').state"), 'Completed');
     await screenshot('transfer-center');
     await call('Emulation.setDeviceMetricsOverride', {width:390, height:844, deviceScaleFactor:1, mobile:true});
+    await call('Emulation.setTouchEmulationEnabled', {enabled:true, maxTouchPoints:1});
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
     assert.equal(await evaluate("document.getElementById('transfers-dialog').scrollWidth <= document.getElementById('transfers-dialog').clientWidth"), true);
     await screenshot('transfer-center-mobile');
-    await call('Emulation.setDeviceMetricsOverride', {width:1280, height:900, deviceScaleFactor:1, mobile:false});
+    await call('Emulation.setDeviceMetricsOverride', {width:1440, height:900, deviceScaleFactor:1, mobile:false});
+    await call('Emulation.setTouchEmulationEnabled', {enabled:false});
     await evaluate("clearTransfers(); document.getElementById('transfers-dialog').close()");
     await call('Network.setBypassServiceWorker', {bypass:false});
 
@@ -143,15 +145,27 @@ const path = require('node:path');
         const result = await call('Page.captureScreenshot', {format:'png', captureBeyondViewport:false});
         fs.writeFileSync(path.join(process.argv[4], name + '.png'), Buffer.from(result.data, 'base64'));
     }
-    await call('Emulation.setDeviceMetricsOverride', {width:1280, height:900, deviceScaleFactor:1, mobile:false});
+    await call('Emulation.setDeviceMetricsOverride', {width:1440, height:900, deviceScaleFactor:1, mobile:false});
     await evaluate("document.getElementById('operation-panel').hidden = true; setClipboard([], null); setView('grid'); sortDirection = 'asc'; sortFiles('name'); toggleSidebar(true)");
     await screenshot('explorer-dark');
     await evaluate('toggleTheme()');
     await screenshot('explorer-light');
     await call('Emulation.setDeviceMetricsOverride', {width:390, height:844, deviceScaleFactor:1, mobile:true});
+    await call('Emulation.setTouchEmulationEnabled', {enabled:true, maxTouchPoints:1});
+    assert.equal(await evaluate('navigator.maxTouchPoints'), 1);
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
     assert.equal(await evaluate("{const rect = document.getElementById('server-status').getBoundingClientRect(); rect.left === 0 && Math.abs(rect.bottom - innerHeight) <= 1}"), true);
     await screenshot('explorer-mobile');
+    // Exercise browser-generated touch/click events, not only a narrow viewport.
+    async function tap(selector) {
+        const point = await evaluate(`(() => { const r = document.querySelector(${JSON.stringify(selector)}).getBoundingClientRect(); return {x:r.x+r.width/2, y:r.y+r.height/2}; })()`);
+        await call('Input.dispatchTouchEvent', {type:'touchStart', touchPoints:[point]});
+        await call('Input.dispatchTouchEvent', {type:'touchEnd', touchPoints:[]});
+    }
+    await tap('#folder-sidebar .sidebar-action');
+    await waitFor("document.getElementById('folder-sidebar').hidden");
+    await tap('#btn-sidebar');
+    await waitFor("!document.getElementById('folder-sidebar').hidden");
     await evaluate("toggleSidebar(false); setView('list')");
     assert.equal(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), true);
     // Validate the worker in a real browser and preserve live server responses.
@@ -225,7 +239,7 @@ const path = require('node:path');
         await evaluate("document.querySelector('.search-input').value = 'deep-report'; document.getElementById('search-recursive').checked = true; handleSearch('deep-report')");
         await waitFor("document.querySelectorAll('.search-result').length === 1");
     }
-    console.log('Chrome checks passed: transfer queue, cancellation, retry, file operations, previews, search, recovery, preferences, mobile width, PWA, temporary links, password downloads, live latency footer, disconnect and reconnection.');
+    console.log('Chrome checks passed: transfer queue, cancellation, retry, file operations, previews, search, recovery, preferences, desktop 1440px, mobile 390px with touch events, PWA, temporary links, password downloads, live latency footer, disconnect and reconnection.');
     await call('Browser.close');
     socket.close();
 })().catch(error => { console.error(error); process.exit(1); });
