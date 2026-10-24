@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QLineEdit, QComboBox
 
 
 PORTUGUESE = {
+    'System intents require a general administrator login and password.': 'Os comandos do sistema exigem login e senha do administrador geral.',
     'Maximum transmission resolution:': 'Resolução máxima da transmissão:',
     'JPEG quality:': 'Qualidade JPEG:',
     'Preserves proportions and never enlarges the camera image.': 'Preserva a proporção e nunca amplia a imagem da câmera.',

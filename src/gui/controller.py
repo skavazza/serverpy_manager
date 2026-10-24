@@ -669,6 +669,14 @@ class AppController:
                 print(self.language.text("Error: Username and password required for auth."))
                 return
             config['auth_credentials'] = (user, pwd)
+
+        if config['enable_intents'] and not config.get('auth_credentials'):
+            message = self.language.text('System intents require a general administrator login and password.')
+            print(message)
+            self.start_error.setText(message)
+            self.start_error_source = 'System intents require a general administrator login and password.'
+            self.start_error.show()
+            return
             
         if self.window.chk_whitelist.isChecked():
             config['whitelist'] = [

@@ -30,7 +30,9 @@ class CancellableReader(io.RawIOBase):
     def readinto(self, buffer):
         if not buffer:
             return 0
-        deadline = time.monotonic() + self.idle_timeout
+        socket_timeout = self.connection.gettimeout()
+        idle_timeout = self.idle_timeout if socket_timeout is None else min(self.idle_timeout, socket_timeout)
+        deadline = time.monotonic() + idle_timeout
         while True:
             if self.cancelled.is_set():
                 raise ConnectionAbortedError('Transfer cancelled')

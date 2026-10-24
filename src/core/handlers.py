@@ -4,9 +4,9 @@ import html
 import urllib.parse
 import shutil
 import json
-import subprocess
 import time
 import io
+import tempfile
 import hashlib
 import socket
 import select
@@ -26,6 +26,9 @@ from .uploads import StagedUpload
 from .camera_http import CameraHTTP
 from .camera import CAMERA_HEADERS, CAMERA_RESERVED_HEADERS
 from .access import FolderAccessHTTP, PERMISSIONS
+from .intents import run_intent, IntentLimitError
+from .http_limits import RequestBodyLimits, HTTPResourceError
+from .archives import build_archive
 
 
 def resolve_client_ip(peer_ip, headers, cloudflare_tunnel=False):
@@ -49,7 +52,7 @@ def resolve_client_ip(peer_ip, headers, cloudflare_tunnel=False):
         return peer_ip
 
 
-class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server.SimpleHTTPRequestHandler):
+class CustomHandler(RequestBodyLimits, FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server.SimpleHTTPRequestHandler):
     """
     Custom HTTP Request Handler for the File Manager.
     Handles standard file serving plus API endpoints for file management and system intents.
@@ -76,6 +79,9 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
         self.server.traffic.begin_cycle(self.traffic_id)
         try:
             super().handle_one_request()
+        except HTTPResourceError as error:
+            self.close_connection = True
+            self.send_error(error.status, str(error))
         finally:
             self.server.traffic.finish_request(self.traffic_id)
 
@@ -189,12 +195,19 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
                 return False
                 
         if config.get('rate_limit') is not None:
-            now = time.time()
+            now = time.monotonic()
             lock = getattr(self.server, 'ip_tracker_lock', None)
             if lock:
                 lock.acquire()
             try:
+                expired = [ip for ip, history in self.server.ip_tracker.items()
+                           if not history or history[-1] < now - config['rate_limit_ttl']]
+                for ip in expired:
+                    del self.server.ip_tracker[ip]
                 if client_ip not in self.server.ip_tracker:
+                    if len(self.server.ip_tracker) >= config['rate_limit_max_ips']:
+                        self.send_error(429, 'Request rate tracker is at capacity')
+                        return False
                     self.server.ip_tracker[client_ip] = deque()
                 
                 tracker = self.server.ip_tracker[client_ip]
@@ -496,18 +509,7 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
             self.send_error(403, "Access denied")
             return
             
-        lengths = self.headers.get_all('Content-Length', [])
-        if self.headers.get('Transfer-Encoding') or len(lengths) > 1:
-            self.send_error(400, 'Invalid upload framing')
-            return
-        if not lengths:
-            self.send_error(411, 'Content-Length required')
-            return
-        raw_length = lengths[0]
-        if len(raw_length) > 20 or not raw_length.isascii() or not raw_length.isdigit():
-            self.send_error(400, 'Invalid Content-Length')
-            return
-        length = int(raw_length)
+        length = self.body_length(config['max_upload_bytes'])
         token = None
         monitor = self.server.transfers
         try:
@@ -516,10 +518,14 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
             with StagedUpload(self.explorer, relative, exclusive) as upload:
                 token = monitor.begin('Upload', self.url_prefix + self.path, length,
                                       self.client_ip, self.cancel_transfer)
-                self.connection.settimeout(60)
+                deadline = time.monotonic() + config['upload_timeout']
                 remaining = length
                 while remaining > 0:
                     monitor.advance(token, 0)
+                    remaining_time = deadline - time.monotonic()
+                    if remaining_time <= 0:
+                        raise TimeoutError('Upload timed out')
+                    self.connection.settimeout(min(config['upload_idle_timeout'], remaining_time))
                     chunk = self.rfile.read1(min(remaining, 64 * 1024))
                     if not chunk:
                         raise ConnectionError('Incomplete upload')
@@ -674,29 +680,29 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
                 self.send_error(404, "Directory not found or access denied")
                 return
 
-            mem_file = io.BytesIO()
+            if not self.server.zip_slot.acquire(blocking=False):
+                self.send_error(503, 'Another ZIP is being generated')
+                return
+            started = False
             try:
-                import zipfile
-                with zipfile.ZipFile(mem_file, 'w', zipfile.ZIP_DEFLATED) as zf:
-                    for root, dirs, files in os.walk(folder_path):
-                        dirs[:] = [name for name in dirs if name.casefold() != STATE_FOLDER and self.safe_resolve_path(os.path.relpath(os.path.join(root, name), self.directory))]
-                        for file in files:
-                            abs_path = os.path.join(root, file)
-                            if not self.safe_resolve_path(os.path.relpath(abs_path, self.directory)):
-                                continue
-                            rel_path = os.path.relpath(abs_path, folder_path)
-                            zf.write(abs_path, rel_path)
-                
-                zip_data = mem_file.getvalue()
-                mem_file.close()
-                self.send_response(200)
-                self.send_header("Content-type", "application/zip")
-                self.send_header("Content-Disposition", 'attachment; filename="archive.zip"')
-                self.send_header("Content-Length", str(len(zip_data)))
-                self.end_headers()
-                self.wfile.write(zip_data)
-            except Exception as e:
-                self.send_error(500, str(e))
+                with tempfile.TemporaryFile(prefix='serverpy_zip_') as archive:
+                    size = build_archive(self.explorer, folder_path, archive, config)
+                    self.send_response(200)
+                    self.send_header('Content-type', 'application/zip')
+                    self.send_header('Content-Disposition', 'attachment; filename="archive.zip"')
+                    self.send_header('Content-Length', str(size))
+                    self.end_headers()
+                    started = True
+                    self.copyfile(archive, self.wfile)
+            except HTTPResourceError:
+                raise
+            except OSError:
+                if not started:
+                    self.send_error(500, 'Unable to generate ZIP')
+                else:
+                    self.close_connection = True
+            finally:
+                self.server.zip_slot.release()
             return
 
         super().do_GET()
@@ -766,7 +772,7 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
                 self.send_error(405, 'Modification not allowed')
                 return
             try:
-                data = json.loads(self.rfile.read(int(self.headers.get('Content-Length', 0))))
+                data = self.read_json_body()
                 if not isinstance(data, dict) or not isinstance(data.get('id'), str):
                     self.send_error(400, 'Invalid recovery item')
                     return
@@ -787,8 +793,7 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
                 return
             
             try:
-                content_length = int(self.headers.get('Content-Length', 0))
-                data = json.loads(self.rfile.read(content_length))
+                data = self.read_json_body()
                 
                 if self.path == '/api/save':
                     file_path = self.safe_resolve_path(data.get('path', ''))
@@ -862,6 +867,8 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
                     self.send_header("Content-Length", "0")
                     self.end_headers()
                     return
+            except HTTPResourceError:
+                raise
             except FileExistsError:
                 self.send_error(409, 'Destination already exists')
             except ExplorerError as e:
@@ -872,14 +879,20 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
         
         # Intent execution API
         if config.get('enable_intents') and self.path == '/api/intent':
-            length = int(self.headers.get('Content-Length', 0))
-            data = self.rfile.read(length).decode('utf-8')
+            # Defense in depth: do not rely only on startup validation or folder ACLs.
+            if not config.get('auth_credentials') or getattr(self, 'folder_user', None) is not None:
+                self.send_error(403, 'Administrator login required')
+                return
+            if not self.check_auth():
+                return
+            payload = self.read_json_body(limit=64 * 1024)
+            if not self.server.intent_slot.acquire(blocking=False):
+                self.send_error(503, 'Another system command is running')
+                return
             try:
-                payload = json.loads(data)
-                command = payload.get('command')
-                if command:
-                    result = subprocess.run(command, shell=True, capture_output=True, text=True)
-                    response = {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
+                command = payload.get('command') if isinstance(payload, dict) else None
+                if isinstance(command, str) and command.strip() and '\x00' not in command:
+                    response = run_intent(command)
                     response_bytes = json.dumps(response).encode('utf-8')
                     self.send_response(200)
                     self.send_header('Content-Type', 'application/json')
@@ -890,9 +903,17 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
                 else:
                     self.send_error(400, "Missing 'command' in JSON")
                     return
+            except IntentLimitError as error:
+                self.send_error(504, str(error))
+            except (ValueError, UnicodeError):
+                self.send_error(400, 'Invalid command payload')
+            except (TimeoutError, socket.timeout):
+                self.send_error(408, 'Command body timed out')
             except Exception as e:
                 self.send_error(500, f"Error executing intent: {e}")
-                return
+            finally:
+                self.server.intent_slot.release()
+            return
 
         self.send_error(405, "Method Not Allowed")
 
@@ -937,4 +958,10 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
         except Exception:
             msg = " ".join([str(format)] + [str(a) for a in args])
         client = self.client_ip if hasattr(self, 'client_address') and self.client_address else "unknown"
-        print(f"{client} - - [{self.log_date_time_string()}] {redact_download_tokens(msg)}")
+        line = f"{client} - - [{self.log_date_time_string()}] {redact_download_tokens(msg)}"
+        try:
+            print(line)
+        except UnicodeEncodeError:
+            # Console encodings such as cp1252 cannot represent every URL.
+            # Redaction happens first so the fallback cannot expose link tokens.
+            print(line.encode('ascii', errors='backslashreplace').decode('ascii'))

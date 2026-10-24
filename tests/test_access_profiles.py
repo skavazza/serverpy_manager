@@ -215,6 +215,17 @@ class TestConfigurationProfiles(unittest.TestCase):
         self.assertFalse(controller.server_manager.is_running)
         self.assertNotIn('temporary-password', self.settings.value('server/options'))
 
+    def test_intents_without_general_login_show_translated_error_before_start(self):
+        controller = self.controller()
+        controller.language_combo.setCurrentIndex(controller.language_combo.findData('pt'))
+        controller.window.chk_intent.setChecked(True)
+        controller.window.chk_auth.setChecked(False)
+        with patch.object(controller.server_manager, 'start_server') as start:
+            controller._start_server()
+            start.assert_not_called()
+        self.assertFalse(controller.start_error.isHidden())
+        self.assertIn('administrador geral', controller.start_error.text())
+
     def test_missing_folder_or_interface_and_running_server_do_not_mutate(self):
         controller = self.controller()
         panel = controller.navigation.profiles
