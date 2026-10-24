@@ -98,7 +98,18 @@ class AboutDialog(QDialog):
         credits.setTextFormat(Qt.PlainText)
         credits.setWordWrap(True)
         form.addRow(self.language.text('Credits'), credits)
-        layout.addLayout(form)
+        details = QHBoxLayout()
+        details.addLayout(form, 1)
+        logo_path = Path(__file__).resolve().parents[2] / 'visual_identity' / 'krakenlogo.svg'
+        if logo_path.is_file():
+            logo = QLabel(self)
+            logo.setObjectName('krakentech_logo')
+            logo.setAccessibleName('KrakenTech Services')
+            logo.setPixmap(QIcon(str(logo_path)).pixmap(128, 128))
+            logo.setFixedSize(128, 128)
+            logo.setAlignment(Qt.AlignCenter)
+            details.addWidget(logo, 0, Qt.AlignRight | Qt.AlignTop)
+        layout.addLayout(details)
         self.license_text = QTextEdit(self)
         self.license_text.setReadOnly(True)
         license_path = Path(__file__).resolve().parents[2] / 'LICENSE'
