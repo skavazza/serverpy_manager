@@ -66,7 +66,7 @@ class TestStartupRegistration(unittest.TestCase):
         linux_startup.registry = None
         import tempfile
         from pathlib import Path
-        with tempfile.TemporaryDirectory() as tmpdir:
+        with patch('src.core.startup.sys.platform', 'linux'), tempfile.TemporaryDirectory() as tmpdir:
             test_desktop = Path(tmpdir) / 'serverpy.desktop'
             with patch.object(linux_startup, '_linux_desktop_path', return_value=test_desktop):
                 self.assertFalse(linux_startup.is_enabled())

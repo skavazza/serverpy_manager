@@ -1,1 +1,3 @@
 vendor/findport/* -text
+/start.sh text eol=lf
+/start.bat text eol=crlf

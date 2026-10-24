@@ -1,48 +1,31 @@
 #!/bin/bash
-
-# Define o diretório atual do script como o diretório de trabalho
-cd "$(dirname "$0")"
-
+set -eu
+cd -- "$(dirname -- "$0")"
 echo "Verificando ambiente..."
 
-PYTHON_BIN=python3
-command -v python3 >/dev/null 2>&1 || PYTHON_BIN=python
-
-# Recria o venv se estiver quebrado (ex: criado por outro Python)
-if [ -d "venv" ]; then
-    if [ -x "venv/bin/python3" ]; then VENV_PY="venv/bin/python3"; else VENV_PY="venv/Scripts/python.exe"; fi
-    if ! "$VENV_PY" -c "import sys" >/dev/null 2>&1; then
-        echo "Ambiente virtual inválido. Recriando..."
-        rm -rf venv
-    fi
-fi
-
-# Verifica se o diretório do ambiente virtual existe
-if [ ! -d "venv" ]; then
-    echo "Criando ambiente virtual (venv)..."
-    "$PYTHON_BIN" -m venv venv
-    if [ $? -ne 0 ]; then
-        echo "Erro ao criar o ambiente virtual. Certifique-se de ter o pacote venv instalado (ex: sudo apt install python3-venv)."
+if [ ! -e venv ]; then
+    PYTHON_BIN=python3
+    command -v python3 >/dev/null 2>&1 || PYTHON_BIN=python
+    if ! "$PYTHON_BIN" -c 'import sys; sys.exit(sys.version_info < (3, 10))'; then
+        echo "Erro: instale Python 3.10 ou superior." >&2
         exit 1
     fi
+    "$PYTHON_BIN" -m venv venv
 fi
 
-# Ativa o ambiente virtual
-if [ -f "venv/bin/activate" ]; then
-    source venv/bin/activate
+if [ -x venv/bin/python ]; then
+    VENV_PY=venv/bin/python
+elif [ -f venv/Scripts/python.exe ]; then
+    VENV_PY=venv/Scripts/python.exe
 else
-    source venv/Scripts/activate
+    echo "Erro: venv incompativel. Preserve ou renomeie a pasta e crie um ambiente para este sistema." >&2
+    exit 1
 fi
-
-# Instala as dependências se o requirements.txt existir
-if [ -f "requirements.txt" ]; then
-    echo "Instalando ou atualizando dependências do requirements.txt..."
-    pip install -r requirements.txt
-else
-    echo "Aviso: requirements.txt não encontrado."
+"$VENV_PY" -c 'import sys; sys.exit(sys.version_info < (3, 10))'
+if [ "${1:-}" = "--check" ]; then
+    exec "$VENV_PY" setup_env.py --check
 fi
-
-echo "Iniciando o servidor HTTP Manager (PySide6)..."
-# Usar PYTHONPATH para garantir que o pacote 'src' seja encontrado
-export PYTHONPATH=$PYTHONPATH:.
-python src/main.py
+"$VENV_PY" setup_env.py
+export PYTHONPATH="$PWD${PYTHONPATH:+:$PYTHONPATH}"
+echo "Iniciando ServerPy HTTP Manager..."
+exec "$VENV_PY" src/main.py

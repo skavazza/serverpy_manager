@@ -27,6 +27,18 @@ from src.gui.i18n import InterfaceLanguage
 from src.gui.storage import AndroidDevicePanel
 
 
+_HOST_CHMOD = Path.chmod
+
+
+def assert_executable_permissions(test, path, chmod):
+    # A Linux fixture on NTFS cannot expose POSIX executable bits via stat.
+    # Always verify the requested chmod and verify the actual bits on POSIX.
+    test.assertTrue(any(call.args[0].name == path.name and call.args[1] & 0o111
+                        for call in chmod.call_args_list))
+    if os.name != 'nt':
+        test.assertTrue(path.stat().st_mode & 0o111)
+
+
 class TestAndroidADB(unittest.TestCase):
     def adb(self, stdout='', returncode=0, stderr=''):
         return patch(
@@ -201,7 +213,8 @@ class TestAndroidADB(unittest.TestCase):
             with self.assertRaisesRegex(OSError, 'unauthorized'):
                 list_android_devices()
 
-    def test_platform_tools_download_is_verified_and_installed_for_user(self):
+    @patch.object(Path, 'chmod', autospec=True, side_effect=_HOST_CHMOD)
+    def test_platform_tools_download_is_verified_and_installed_for_user(self, chmod):
         archive_data = io.BytesIO()
         with zipfile.ZipFile(archive_data, 'w') as archive:
             archive.writestr('platform-tools/adb', b'adb-binary')
@@ -228,7 +241,7 @@ class TestAndroidADB(unittest.TestCase):
             def read(self, size):
                 return self.data.read(size)
 
-        with tempfile.TemporaryDirectory() as folder, patch(
+        with patch('src.core.android.sys.platform', 'linux'), tempfile.TemporaryDirectory() as folder, patch(
             'src.core.android._platform_tools_config', return_value=config,
         ), patch(
             'src.core.android._platform_tools_directory',
@@ -241,7 +254,7 @@ class TestAndroidADB(unittest.TestCase):
                 lambda current, total: progress.append((current, total)),
             ))
             self.assertEqual(installed.read_bytes(), b'adb-binary')
-            self.assertTrue(installed.stat().st_mode & 0o111)
+            assert_executable_permissions(self, installed, chmod)
             self.assertEqual(progress[-1], (len(archive_data.getvalue()), len(archive_data.getvalue())))
             self.assertEqual(installed.parent.name, 'platform-tools')
 
@@ -391,7 +404,8 @@ class TestScrcpyInstaller(unittest.TestCase):
                 install_scrcpy()
             self.assertFalse((Path(folder) / 'outside.txt').exists())
 
-    def test_official_linux_tarball_is_installed(self):
+    @patch.object(Path, 'chmod', autospec=True, side_effect=_HOST_CHMOD)
+    def test_official_linux_tarball_is_installed(self, chmod):
         root = 'scrcpy-linux-x86_64-v5.0.1'
         archive_data = io.BytesIO()
         with tarfile.open(fileobj=archive_data, mode='w:gz') as archive:
@@ -421,13 +435,14 @@ class TestScrcpyInstaller(unittest.TestCase):
         ), patch('src.core.scrcpy.sys.platform', 'linux'):
             executable = Path(install_scrcpy())
             self.assertEqual(executable.read_bytes(), b'scrcpy-binary')
-            self.assertTrue(executable.stat().st_mode & 0o111)
+            assert_executable_permissions(self, executable, chmod)
             self.assertEqual(
                 (executable.parent / 'scrcpy-server').read_bytes(),
                 b'server-binary',
             )
 
-    def test_existing_install_repairs_scrcpy_and_bundled_adb_permissions(self):
+    @patch.object(Path, 'chmod', autospec=True, side_effect=_HOST_CHMOD)
+    def test_existing_install_repairs_scrcpy_and_bundled_adb_permissions(self, chmod):
         with tempfile.TemporaryDirectory() as folder:
             install = Path(folder)
             config = {'executable': 'scrcpy'}
@@ -445,8 +460,8 @@ class TestScrcpyInstaller(unittest.TestCase):
                 'src.core.scrcpy._scrcpy_directory', return_value=install,
             ):
                 self.assertEqual(scrcpy_executable(), str(executable))
-            self.assertTrue(executable.stat().st_mode & 0o111)
-            self.assertTrue(bundled_adb.stat().st_mode & 0o111)
+            assert_executable_permissions(self, executable, chmod)
+            assert_executable_permissions(self, bundled_adb, chmod)
 
     def test_supported_platforms_are_limited_to_official_builds(self):
         with patch('src.core.scrcpy.sys.platform', 'win32'), patch(
