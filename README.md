@@ -32,13 +32,13 @@ Documentação por recurso:
 
 ## Clone privado para colaboradores autorizados
 
-O repositório `skavazza/serverpy-http` é privado. O acesso é limitado a
+O repositório `skavazza/serverpy_manager` é privado. O acesso é limitado a
 colaboradores autorizados; estas instruções não anunciam uma publicação pública
 nem alteram os termos de [`LICENSE`](LICENSE).
 
 ```bash
-git clone https://github.com/skavazza/serverpy-http.git
-cd serverpy-http
+git clone https://github.com/skavazza/serverpy_manager.git
+cd serverpy_manager
 ```
 
 No Linux, crie o ambiente e inicie o aplicativo:

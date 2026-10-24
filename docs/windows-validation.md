@@ -61,13 +61,42 @@ Continuam pendentes:
 - Controle visual Android no Windows com aceite manual.
 - Câmera/microfone, scanner e impressora físicos.
 - Instalação e regressão atuais em Linux nativo.
-- Clone limpo de uma revisão publicada e entrega privada.
+- Aceite final de hardware antes de concluir a entrega.
+
+## Clone publicado e privacidade do repositório
+
+Na rodada seguinte foi clonado diretamente `origin/main` de
+`skavazza/serverpy_manager`, na revisão
+`6a2fac32f12a4db2594a152b3b51e13ca82e6c80`, sem copiar os fontes do workspace.
+A API do GitHub confirmou `private: true` e `visibility: private`.
+
+O FindPort necessário está incluído em `vendor/findport/`. A revisão da árvore
+rastreada não encontrou arquivos de banco, `.env`, certificados/chaves nem
+pastas de dados locais; os padrões selecionados de chaves privadas e tokens
+também não tiveram ocorrências. Essa verificação é da árvore atual e não
+constitui auditoria completa do histórico ou de todos os formatos de segredo.
+
+As evidências desta rodada ficam em `artifacts/clean-install__wh9np99/`, incluindo
+manifesto, `source-review.json` e logs por etapa. Passaram a instalação em venv
+novo, launcher, dez abas Qt/HTTP, Chrome na raiz e em pasta adicional e todos
+os 300 testes da suíte. O relatório confirmou `tracked_worktree_clean: true`.
+O aceite de dispositivos físicos
+e a validação nativa Linux permanecem separados da publicação dos fontes.
 
 ## Reproduzir e localizar evidências
 
 ```powershell
 .\venv\Scripts\python.exe tests/run_clean_install.py
 ```
+
+Para baixar e validar a revisão publicada no remoto, use:
+
+```powershell
+.\venv\Scripts\python.exe tests/run_clean_install.py --clone
+```
+
+O modo `--clone` exige que a revisão da branch no remoto seja igual ao `HEAD`
+local e verifica ao final que os arquivos rastreados do clone não foram alterados.
 
 O roteiro cria `artifacts/clean-install_<id>/` com `source/`, `manifest.json`,
 `report.json`, logs por etapa e capturas. Usa um ambiente novo e mantém seus

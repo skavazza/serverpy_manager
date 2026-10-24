@@ -1,4 +1,4 @@
-"""Validate a source snapshot in a new venv, without touching the user's venv."""
+"""Validate a source snapshot or published clone in an isolated new venv."""
 
 import hashlib
 import json
@@ -24,23 +24,41 @@ def main():
     run = Path(tempfile.mkdtemp(prefix='clean-install_', dir=evidence))
     source = run / 'source'
     source.mkdir()
+    clone_mode = '--clone' in sys.argv
+    expected_revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip()
+    if clone_mode:
+        branch = subprocess.check_output(['git', 'branch', '--show-current'], cwd=ROOT).decode().strip()
+        if not branch:
+            raise RuntimeError('Clone validation requires a named branch.')
+        remote = subprocess.check_output(['git', 'remote', 'get-url', 'origin'], cwd=ROOT).decode().strip()
+        print('Cloning published branch ' + branch + '...', flush=True)
+        with (run / 'clone.log').open('wb') as log:
+            subprocess.run(['git', 'clone', '--depth', '1', '--single-branch', '--branch',
+                            branch, remote, str(source)], cwd=ROOT, stdout=log, stderr=log,
+                           check=True, timeout=180)
+        actual_revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=source).decode().strip()
+        if actual_revision != expected_revision:
+            raise RuntimeError('Remote and local revisions differ; validate after synchronizing.')
+    source_root = source if clone_mode else ROOT
     names = subprocess.check_output(['git', 'ls-files', '-z', '--cached', '--others',
-                                     '--exclude-standard', '--', *SOURCE_PATHS], cwd=ROOT)
+                                     '--exclude-standard', '--', *SOURCE_PATHS], cwd=source_root)
     manifest = {}
     for relative in sorted(set(names.decode('utf-8').split('\0')) - {''}):
-        origin = ROOT / relative
+        origin = source_root / relative
         if not origin.is_file() or origin.is_symlink():
             continue
-        if not origin.resolve().is_relative_to(ROOT):
+        if not origin.resolve().is_relative_to(source_root):
             raise RuntimeError('Source escapes workspace: ' + relative)
         destination = source / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(origin, destination)
+        if not clone_mode:
+            shutil.copy2(origin, destination)
         manifest[relative] = hashlib.sha256(destination.read_bytes()).hexdigest()
     (run / 'manifest.json').write_text(json.dumps(manifest, indent=2), encoding='utf-8')
     report = dict(platform=platform.platform(), python=sys.version,
-                  source_kind='working-tree snapshot including uncommitted files; not a clean Git clone',
-                  base_revision=subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT).decode().strip(),
+                  source_kind=('clean clone of published Git revision' if clone_mode else
+                               'working-tree snapshot including uncommitted files; not a clean Git clone'),
+                  base_revision=expected_revision,
                   files=len(manifest), stages=[])
     environment = dict(os.environ)
     environment.pop('PYTHONHOME', None)
@@ -88,6 +106,12 @@ def main():
     else:
         report['browser_validation'] = 'not run: Chrome and Node required'
     stage('regression', [str(python), '-m', 'unittest', 'discover', '-s', 'tests', '-q'])
+    if clone_mode:
+        dirty = subprocess.check_output(['git', 'status', '--porcelain', '--untracked-files=no'], cwd=source)
+        report['tracked_worktree_clean'] = not dirty.strip()
+        (run / 'report.json').write_text(json.dumps(report, indent=2), encoding='utf-8')
+        if dirty.strip():
+            raise RuntimeError('Validation modified tracked files in the clean clone.')
     print('Clean installation and validation passed.', flush=True)
 
 

@@ -163,16 +163,23 @@ Não há novas datas de entrega definidas.
   - **Roteiros/evidências:** [validação Windows](docs/windows-validation.md),
     [instalação limpa](tests/run_clean_install.py),
     [interface Qt](tests/run_desktop_smoke.py).
-- [ ] `REL-002` — Validar clone limpo e publicação privada
+- [~] `REL-002` — Validar clone limpo e publicação privada
   - **Prioridade:** Alta após estabilização.
   - **Dependências:** etapas 1–3 e `QA-003`.
   - **Critérios:** validar clone limpo, dependências, FindPort incluído,
     documentação e ausência de credenciais/dados locais; registrar revisão e
-    resultados antes de concluir a publicação privada em `skavazza/serverpy-http`.
+    resultados antes de concluir a publicação privada em `skavazza/serverpy_manager`.
     Distribuição pública e bundles continuam sujeitos aos termos de `LICENSE`.
-  - **Preparação local:** snapshot selecionado com manifesto de arquivos e
-    dependências instalado em venv novo. Clone de revisão publicada e publicação
-    privada ainda pendentes; snapshot local não conclui esta tarefa.
+  - **Publicação de fontes verificada em 2026-10-24:** `origin/main` de
+    `skavazza/serverpy_manager` clonado na revisão `6a2fac3`; GitHub confirmou
+    repositório privado. FindPort incluído e revisão da árvore atual sem
+    ocorrências dos padrões selecionados de credenciais ou caminhos de dados
+    locais; não é auditoria integral de histórico/segredos.
+  - **Clone validado:** instalação em venv novo, `pip check`, launcher,
+    dez abas Qt/HTTP e Chrome na raiz/pasta adicional aprovados; 300 testes
+    aprovados. Arquivos rastreados permaneceram inalterados ao final.
+  - **Pendente para aceite final:** validação nativa Linux e hardware de
+    `QA-003`/`ANDR-007`. A publicação dos fontes não substitui essas verificações.
 
 ### Etapa 5 — Reduzir o custo de manutenção
 

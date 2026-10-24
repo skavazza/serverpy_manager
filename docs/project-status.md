@@ -62,6 +62,10 @@ Veja os guias [Android](android.md), [SSH](ssh.md),
 - Primeiro ciclo de manutenção concluído: separação adicional de Android/USB
   e SSH/diagnósticos aprovada nos 300 testes e no roteiro Qt/HTTP das dez abas;
   caminhos públicos antigos de importação preservados.
+- Clone publicado `6a2fac3` validado em venv novo: 300 testes, launcher,
+  Qt/HTTP e Chrome aprovados, com arquivos rastreados inalterados. A API do
+  GitHub confirmou `skavazza/serverpy_manager` privado; revisão limitada da
+  árvore atual sem ocorrências dos padrões de credenciais/dados locais verificados.
 - Uso interativo no Windows, hardware físico de câmera/scanner/impressora e vários caminhos de
   rede precisam de validações específicas; testes simulados não substituem
   essas verificações.
@@ -82,8 +86,9 @@ A sequência atual é:
    protegidos; instalação em venv novo e 296 testes passaram em Windows.
    Linux nativo continua pendente (`REL-001`, `QA-001` e `QA-002`). Veja o [guia](installation.md).
 4. **Validação e entrega — em andamento:** fluxos automatizados Qt/HTTP/browser
-   aprovados no Windows. Faltam aceite de hardware, controle Android, clone de
-   revisão publicada e entrega privada (`QA-003`, `ANDR-007` e `REL-002`).
+   aprovados no Windows. `origin/main` foi clonado na revisão `6a2fac3`, FindPort
+   incluído e privacidade do repositório confirmada. Faltam aceite de hardware,
+   controle Android e Linux nativo (`QA-003`, `ANDR-007` e `REL-002`).
 5. **Manutenção — primeiro ciclo concluído:** rotas POST de arquivos/recuperação separadas do
    handler principal em `src/core/file_http.py`, mantendo autenticação e
    permissões no fluxo. Montagem da configuração separada do controller em

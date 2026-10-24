@@ -65,8 +65,9 @@ Windows, a abertura sem console exige `venv/Scripts/pythonw.exe`.
   no Windows não valida dependências Qt, permissões reais ou dispositivos Linux.
 - Instalação limpa das dependências no Windows: passou em venv novo sobre um
   snapshot dos fontes atuais, com wheels reutilizadas do cache do pip. Abertura
-  Qt automatizada, fluxos HTTP e navegador também passaram. Isso não equivale
-  a um clone limpo de revisão publicada nem ao aceite manual de hardware.
+  Qt automatizada, fluxos HTTP e navegador também passaram. Em outra rodada,
+  o modo `--clone` baixou a revisão publicada `6a2fac3` do repositório privado
+  e repetiu a instalação isolada. Isso não substitui o aceite manual de hardware.
 - Instalação Linux e validação física continuam pendentes. Esta etapa mantém
   a execução por código-fonte; bundles por SO ficam para uma entrega posterior,
   observando `LICENSE`.
