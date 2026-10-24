@@ -7,13 +7,13 @@ import ipaddress
 import codecs
 import json
 import errno
-import re
 from PySide6.QtWidgets import QApplication, QFileDialog, QLabel, QComboBox, QHBoxLayout, QVBoxLayout, QWidget, QPushButton, QMessageBox, QGroupBox
 from PySide6.QtGui import QDesktopServices
 from PySide6.QtUiTools import QUiLoader
 from PySide6.QtCore import QFile, QIODevice, Qt, QTimer, QTime, QSettings, QUrl
 from .i18n import InterfaceLanguage
 from .navigation import MainNavigation
+from .server_config import build_server_config, normalize_public_hostname, ServerConfigurationError
 from .network_tools import QRCodeDialog
 from ..core.shares import validate_shared_folders
 from ..core.access import validate_users
@@ -23,25 +23,6 @@ from ..core.startup import StartupRegistration
 from ..core.response_headers import validate_response_headers
 from ..core.windows_share import get_share_script_path, execute_share_script, is_windows_10_or_11
 from ..core.platform_utils import is_platform_supported, is_linux
-
-
-def normalize_public_hostname(value):
-    try:
-        hostname = value.strip().rstrip('.').encode('idna').decode('ascii').lower()
-    except UnicodeError:
-        return ''
-    labels = hostname.split('.')
-    valid = (
-        len(hostname) <= 253
-        and len(labels) >= 2
-        and any(character.isalpha() for character in labels[-1])
-        and all(
-            1 <= len(label) <= 63
-            and re.fullmatch(r'[a-z0-9](?:[a-z0-9-]*[a-z0-9])?', label)
-            for label in labels
-        )
-    )
-    return hostname if valid else ''
 
 
 class AppController:
@@ -644,56 +625,17 @@ class AppController:
             print(self.language.text("Error: Directory '{directory}' does not exist or is not a valid folder.", directory=directory))
             return
         
-        # Build config dict
-        config = {
-            'use_tls': self.window.chk_tls.isChecked(),
-            'cert_file': self.cert_path,
-            'render_pages': self.window.chk_render_pages.isChecked(),
-            'allow_mod': self.window.chk_allow_mod.isChecked(),
-            'enable_intents': self.window.chk_intent.isChecked(),
-            'verify_host': self.window.chk_verify_header.isChecked(),
-            'cloudflare_tunnel': self.window.chk_cloudflare_tunnel.isChecked(),
-            'cloudflare_hostname': normalize_public_hostname(self.window.line_cloudflare_hostname.text()),
-            'cors_config': self.cors_config,
-            'custom_headers': dict(self.custom_headers) if self.window.chk_custom_headers.isChecked() else {},
-            'redirections': self.redirections,
-            'shared_folders': list(self.shared_folders),
-            'folder_users': list(self.folder_users),
-            'folder_users_enabled': self.folder_users_enabled,
-        }
-
-        if self.window.chk_auth.isChecked():
-            user = self.window.line_username.text()
-            pwd = self.window.line_password.text()
-            if not user or not pwd:
-                print(self.language.text("Error: Username and password required for auth."))
-                return
-            config['auth_credentials'] = (user, pwd)
-
-        if config['enable_intents'] and not config.get('auth_credentials'):
-            message = self.language.text('System intents require a general administrator login and password.')
+        try:
+            config = build_server_config(self)
+        except ServerConfigurationError as error:
+            source = str(error)
+            message = self.language.text(source)
             print(message)
             self.start_error.setText(message)
-            self.start_error_source = 'System intents require a general administrator login and password.'
+            self.start_error_source = source
             self.start_error.show()
             return
-            
-        if self.window.chk_whitelist.isChecked():
-            config['whitelist'] = [
-                str(ipaddress.ip_address(ip.strip()))
-                for ip in self.window.line_whitelist.text().split(',') if ip.strip()
-            ]
-        
-        if self.window.chk_rate_limit.isChecked():
-            try:
-                config['rate_limit'] = int(self.window.line_rate_limit.text())
-            except ValueError:
-                print(self.language.text("Error: Invalid rate limit."))
-                return
-        
-        if self.window.chk_custom_charset.isChecked():
-            config['custom_charset'] = self.window.line_custom_charset.text().strip()
-        
+
         # Start server
         success, msg = self.server_manager.start_server(host, port, directory, **config)
         print(msg)

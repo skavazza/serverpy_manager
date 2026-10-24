@@ -191,8 +191,17 @@ Não há novas datas de entrega definidas.
   - **Validação:** regressão de 296 testes aprovada, mais um teste novo de
     conflitos aprovado separadamente; smoke Chrome em pasta adicional aprovado
     em desktop/mobile com toque.
-  - **Pendente:** montagem de configuração no controller, armazenamento e
-    ferramentas de rede; seguir com extrações pequenas e regressão por área.
+  - **Segundo incremento em 2026-10-24:** montagem de configuração e
+    normalização de hostname extraídas para `src/gui/server_config.py`.
+    O controller mantém validação de campos, mensagens traduzidas e ciclo do
+    servidor. Opções mutáveis são copiadas para isolar a sessão em execução.
+    Testes cobrem opções desativadas, exigência de administrador para intents
+    e isolamento de permissões/CORS/redirecionamentos após mudanças na interface.
+  - **Validação do segundo incremento:** 300 testes aprovados em Windows;
+    roteiro Qt/HTTP aprovado nas dez abas, incluindo autenticação, permissões,
+    transferências, recuperação e reinício do servidor.
+  - **Pendente:** armazenamento e ferramentas de rede; seguir com extrações
+    pequenas e regressão por área.
   - **Referências:** [handlers](src/core/handlers.py),
     [controller](src/gui/controller.py), [armazenamento](src/gui/storage.py),
     [rede](src/gui/network_tools.py).
