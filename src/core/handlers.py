@@ -248,6 +248,7 @@ class CustomHandler(FolderAccessHTTP, CameraHTTP, TemporaryLinkHTTP, http.server
         if self.is_camera_request():
             custom = {name: value for name, value in custom.items() if name.lower() not in CAMERA_RESERVED_HEADERS}
             self.send_header('X-Camera-FPS', str(self.server.camera.fps))
+            self.send_header('X-Camera-Audio', '1' if self.server.camera.audio.active() else '0')
             for name, value in CAMERA_HEADERS.items():
                 self.send_header(name, value)
         if self.is_link_request():

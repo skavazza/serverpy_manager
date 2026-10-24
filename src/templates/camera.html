@@ -15,11 +15,15 @@
         <select id="language"><option value="pt">Português</option><option value="en">English</option></select>
       </label>
     </header>
-    <p id="note">Taxa de quadros configurada no desktop, sem áudio.</p>
+    <p id="note">Taxa de quadros configurada no desktop. O áudio é opcional.</p>
     <div class="preview"><img id="frame" alt="Imagem da câmera" hidden></div>
     <p id="status" role="status" aria-live="polite">Conectando…</p>
     <p id="metrics">Aguardando métricas da transmissão…</p>
     <button id="pause" type="button" aria-pressed="false">Pausar visualização</button>
+    <button id="audio" type="button" aria-pressed="false" hidden>Ativar áudio</button>
+    <label id="volume-row" hidden><span id="volume-label">Volume</span>
+      <input id="volume" type="range" min="0" max="100" value="100">
+    </label>
     <p><a id="files" href="/">Abrir arquivos</a></p>
     <noscript>Ative o JavaScript para visualizar a câmera / Enable JavaScript to view the camera.</noscript>
   </main>

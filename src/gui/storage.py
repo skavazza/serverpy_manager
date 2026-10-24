@@ -17,8 +17,9 @@ from PySide6.QtWidgets import (
 from ..core.storage import list_external_drives
 from ..core.android import (
     android_adb_available, android_adb_install_supported,
-    capture_android_screenshot, install_android_apk,
-    install_android_platform_tools, list_android_devices,
+    capture_android_screenshot, connect_android_device,
+    disconnect_android_device, discover_android_network_devices,
+    install_android_apk, install_android_platform_tools, pair_android_device, list_android_devices,
     list_android_directory, send_android_control, transfer_android_file,
     set_android_reverse,
 )
@@ -91,6 +92,15 @@ class AndroidDevicePanel(QGroupBox):
         self.scrcpy_process.readyReadStandardOutput.connect(self.capture_scrcpy_output)
         self.layout_box = QVBoxLayout(self)
         row = QHBoxLayout()
+        self.mode_label = QLabel('Connection type', self)
+        self.connection_mode = QComboBox(self)
+        self.connection_mode.addItem('USB cable', 'usb')
+        self.connection_mode.addItem('Wi-Fi (wireless)', 'wifi')
+        row.addWidget(self.mode_label)
+        row.addWidget(self.connection_mode)
+        row.addStretch()
+        self.layout_box.addLayout(row)
+        row = QHBoxLayout()
         self.device = QComboBox(self)
         self.refresh_button = QPushButton('Refresh Android devices', self)
         self.install_adb_button = QPushButton('Install Android platform tools', self)
@@ -103,6 +113,25 @@ class AndroidDevicePanel(QGroupBox):
         install_row.addWidget(self.install_scrcpy_button)
         install_row.addStretch()
         self.layout_box.addLayout(install_row)
+        self.network_group = QGroupBox('Wi-Fi connection (Wireless debugging)', self)
+        network_layout = QGridLayout(self.network_group)
+        self.discover_button = QPushButton('Search phones on network', self.network_group)
+        self.network_found = QComboBox(self.network_group)
+        self.network_endpoint = QLineEdit(self.network_group)
+        self.pair_code = QLineEdit(self.network_group)
+        self.pair_code.setMaxLength(6)
+        self.pair_button = QPushButton('Pair', self.network_group)
+        self.connect_button = QPushButton('Connect', self.network_group)
+        self.disconnect_button = QPushButton('Disconnect', self.network_group)
+        network_layout.addWidget(self.discover_button, 0, 0)
+        network_layout.addWidget(self.network_found, 0, 1, 1, 3)
+        network_layout.addWidget(self.network_endpoint, 1, 0)
+        network_layout.addWidget(self.pair_code, 1, 1)
+        network_layout.addWidget(self.pair_button, 1, 2)
+        network_layout.addWidget(self.connect_button, 1, 3)
+        network_layout.addWidget(self.disconnect_button, 1, 4)
+        self.layout_box.addWidget(self.network_group)
+        self.network_group.setVisible(False)
         session_row = QHBoxLayout()
         self.start_scrcpy_button = QPushButton('Start screen control', self)
         self.stop_scrcpy_button = QPushButton('Stop screen control', self)
@@ -325,7 +354,13 @@ class AndroidDevicePanel(QGroupBox):
         self.layout_box.addWidget(self.install_progress)
 
         self.refresh_button.clicked.connect(self.refresh_devices)
+        self.connection_mode.currentIndexChanged.connect(self.connection_mode_changed)
         self.install_adb_button.clicked.connect(self.install_adb)
+        self.discover_button.clicked.connect(self.discover_network)
+        self.network_found.currentIndexChanged.connect(self.network_choice_changed)
+        self.pair_button.clicked.connect(self.pair_network)
+        self.connect_button.clicked.connect(self.connect_network)
+        self.disconnect_button.clicked.connect(self.disconnect_network)
         self.install_scrcpy_button.clicked.connect(self.install_scrcpy_tools)
         self.start_scrcpy_button.clicked.connect(self.start_scrcpy)
         self.stop_scrcpy_button.clicked.connect(self.stop_scrcpy)
@@ -355,6 +390,51 @@ class AndroidDevicePanel(QGroupBox):
             return
         self.devices_loaded = True
         self.start_task('devices', list_android_devices)
+
+    def connection_mode_changed(self, _index=None):
+        self.network_group.setVisible(self.connection_mode.currentData() == 'wifi')
+        self.entries.clear()
+        self.populate_devices()
+        if self.devices_loaded:
+            self.refresh_devices()
+
+    def populate_devices(self):
+        wifi = self.connection_mode.currentData() == 'wifi'
+        self.device.blockSignals(True)
+        self.device.clear()
+        for item in self.devices:
+            if (':' in item['serial'] or '_adb-tls-connect' in item['serial']) != wifi:
+                continue
+            label = item['model'] or item['serial']
+            if item['state'] != 'device':
+                label += f" ({item['state']})"
+            self.device.addItem(label, item)
+        self.device.blockSignals(False)
+
+    def discover_network(self):
+        if not self.loading:
+            self.start_task('discover', discover_android_network_devices)
+
+    def network_choice_changed(self, _index=None):
+        item = self.network_found.currentData()
+        if isinstance(item, dict):
+            self.network_endpoint.setText(item['endpoint'])
+
+    def pair_network(self):
+        endpoint, code = self.network_endpoint.text(), self.pair_code.text()
+        if not self.loading:
+            self.start_task('pair', lambda: pair_android_device(endpoint, code))
+
+    def connect_network(self):
+        endpoint = self.network_endpoint.text()
+        if not self.loading:
+            self.start_task('connect', lambda: connect_android_device(endpoint))
+
+    def disconnect_network(self):
+        device = self.selected_device()
+        endpoint = device['serial'] if device else self.network_endpoint.text()
+        if not self.loading:
+            self.start_task('disconnect', lambda: disconnect_android_device(endpoint))
 
     def install_adb(self):
         if self.loading or android_adb_available() or not android_adb_install_supported():
@@ -607,14 +687,7 @@ class AndroidDevicePanel(QGroupBox):
             return
         if action == 'devices':
             self.devices = value if ok else []
-            self.device.blockSignals(True)
-            self.device.clear()
-            for item in self.devices:
-                label = item['model'] or item['serial']
-                if item['state'] != 'device':
-                    label += f" ({item['state']})"
-                self.device.addItem(label, item)
-            self.device.blockSignals(False)
+            self.populate_devices()
             if ok and self.selected_device():
                 self.status_source = 'Android device found.'
                 self.load_directory(self.remote_path)
@@ -624,6 +697,33 @@ class AndroidDevicePanel(QGroupBox):
                 if ok else 'Unable to query Android devices.'
             )
             value = '' if ok else value
+        elif action == 'discover':
+            self.network_found.blockSignals(True)
+            self.network_found.clear()
+            if ok:
+                for item in value:
+                    kind = 'pairing' if item['pairing'] else 'connect'
+                    self.network_found.addItem(
+                        f"{item['name']} - {item['endpoint']} ({kind})", item,
+                    )
+            self.network_found.blockSignals(False)
+            if ok and value:
+                self.network_choice_changed()
+                self.status_source = 'Phones found on the network. Pair first if needed, then connect.'
+            else:
+                self.status_source = (
+                    'No phones found. Enable Wireless debugging on the phone and use the same Wi-Fi network.'
+                    if ok else 'Unable to search the network.'
+                )
+        elif action == 'pair':
+            self.status_source = 'Phone paired. Enter the connection address and click Connect.' if ok else 'Unable to pair with the phone.'
+            if ok:
+                self.pair_code.clear()
+        elif action in ('connect', 'disconnect'):
+            if ok:
+                self.refresh_devices()
+                return
+            self.status_source = 'Unable to connect to the phone.'
         elif action == 'directory':
             if ok:
                 self.entries.clear()
@@ -824,7 +924,15 @@ class AndroidDevicePanel(QGroupBox):
             self.scrcpy_process.state() != QProcess.ProcessState.NotRunning
         )
         self.refresh_button.setEnabled(not self.loading and not session_active)
+        self.connection_mode.setEnabled(not self.loading and not session_active)
         self.device.setEnabled(not self.loading and not session_active)
+        idle = not self.loading and not session_active
+        for control in (
+            self.discover_button, self.network_found, self.network_endpoint,
+            self.pair_code, self.pair_button, self.connect_button,
+        ):
+            control.setEnabled(idle)
+        self.disconnect_button.setEnabled(idle)
         self.path.setEnabled(available)
         self.go_button.setEnabled(available)
         self.parent_button.setEnabled(available and self.remote_path != '/')
@@ -867,6 +975,10 @@ class AndroidDevicePanel(QGroupBox):
         language = self.controller.language
         self.setTitle(language.text('Android phone (ADB)'))
         language.apply(self.labels)
+        self.network_endpoint.setPlaceholderText(language.text('Phone address (IP:port)'))
+        for index, label in enumerate(('USB cable', 'Wi-Fi (wireless)')):
+            self.connection_mode.setItemText(index, language.text(label))
+        self.pair_code.setPlaceholderText(language.text('Pairing code'))
         for index, label in enumerate(('Original', '1080p', '720p', '480p')):
             self.resolution.setItemText(index, language.text(label))
         for index, label in enumerate(('Auto', '30 FPS', '60 FPS')):

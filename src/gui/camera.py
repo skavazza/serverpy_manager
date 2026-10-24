@@ -1,20 +1,41 @@
 """Explicit desktop camera capture and a shared latest-frame preview."""
 
+import math
 import time
 from urllib.parse import urlsplit, urlunsplit
 
 from PySide6.QtCore import QBuffer, QIODevice, QTimer, Qt, QEvent
 from PySide6.QtGui import QDesktopServices, QPixmap
-from PySide6.QtMultimedia import QCamera, QMediaCaptureSession, QMediaDevices, QVideoSink
+from PySide6.QtMultimedia import (
+    QAudioFormat, QAudioSource, QCamera, QMediaCaptureSession, QMediaDevices, QVideoSink,
+)
 from PySide6.QtWidgets import (
     QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QComboBox, QLineEdit,
-    QPushButton, QStyle, QSizePolicy, QSpinBox,
+    QPushButton, QStyle, QSizePolicy, QSpinBox, QCheckBox, QProgressBar,
 )
 
+from ..core.camera import AudioFeed
 from .network_tools import QRCodeDialog
 
 
 RESOLUTIONS = ((320, 240), (640, 480), (960, 540), (1280, 720), (1920, 1080))
+AUDIO_QUALITIES = (
+    ('Low (8 kHz, mono)', 8000, 1),
+    ('Voice (16 kHz, mono)', 16000, 1),
+    ('Good (24 kHz, mono)', 24000, 1),
+    ('High (48 kHz, stereo)', 48000, 2),
+)
+
+
+def audio_level(chunk):
+    """Return the peak of 16-bit little-endian PCM as 0-100 over a 60 dB range."""
+    samples = memoryview(chunk).cast('h')
+    if not len(samples):
+        return 0
+    peak = max(max(samples), -min(samples))
+    if peak <= 0:
+        return 0
+    return max(0, min(100, int(100 + 20 * math.log10(peak / 32768) * 100 / 60)))
 
 
 def choose_camera_format(device, bounds, fps):
@@ -40,6 +61,8 @@ class CameraPanel(QWidget):
         self.feed = controller.server_manager.camera
         self.session = None
         self.camera = self.capture = self.sink = None
+        self.audio_source = self.audio_io = self.audio_session = None
+        self.audio_pending = b''
         self.last_frame = None
         self.started = 0
         self.was_active = False
@@ -106,6 +129,32 @@ class CameraPanel(QWidget):
         row.addWidget(self.fps)
         row.addStretch()
         layout.addLayout(row)
+        self.audio_check = QCheckBox(self)
+        layout.addWidget(self.audio_check)
+        self.audio_device = QComboBox(self)
+        self.audio_device.setMinimumContentsLength(12)
+        self.audio_device.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        layout.addWidget(self.audio_device)
+        row = QHBoxLayout()
+        self.audio_quality_label = QLabel(self)
+        self.audio_quality = QComboBox(self)
+        for label, rate, channels in AUDIO_QUALITIES:
+            self.audio_quality.addItem(label, (rate, channels))
+        self.audio_quality.setCurrentIndex(preference('audio_quality', 1, lambda value: 0 <= value < len(AUDIO_QUALITIES)))
+        self.audio_quality_label.setBuddy(self.audio_quality)
+        row.addWidget(self.audio_quality_label)
+        row.addWidget(self.audio_quality)
+        row.addStretch()
+        layout.addLayout(row)
+        self.audio_level_bar = QProgressBar(self)
+        self.audio_level_bar.setRange(0, 100)
+        self.audio_level_bar.setTextVisible(False)
+        self.audio_level_bar.setMaximumHeight(10)
+        layout.addWidget(self.audio_level_bar)
+        self.audio_quality.currentIndexChanged.connect(self.change_audio_quality)
+        self.audio_check.toggled.connect(self.update_actions)
+        self.audio_mute = QCheckBox(self)
+        layout.addWidget(self.audio_mute)
         row = QHBoxLayout()
         self.start_button = self.button(QStyle.SP_MediaPlay)
         self.stop_button = self.button(QStyle.SP_MediaStop)
@@ -172,6 +221,11 @@ class CameraPanel(QWidget):
             self.apply_camera_format()
         self.retranslate()
 
+    def change_audio_quality(self):
+        settings = getattr(self.controller, 'settings', None)
+        if settings is not None:
+            settings.setValue('camera/audio_quality', self.audio_quality.currentIndex())
+
     def change_image_settings(self):
         settings = getattr(self.controller, 'settings', None)
         if settings is not None:
@@ -206,6 +260,7 @@ class CameraPanel(QWidget):
     def refresh(self):
         if self.session:
             return
+        self.refresh_microphones()
         previous = self.devices.currentData()
         previous_id = bytes(previous.id()) if previous else None
         self.devices.clear()
@@ -220,6 +275,24 @@ class CameraPanel(QWidget):
             self.status_source = 'Unable to list cameras.'
             self.detail = str(error)
         self.retranslate()
+
+    def refresh_microphones(self):
+        list_inputs = getattr(QMediaDevices, 'audioInputs', None)
+        if list_inputs is None:
+            return
+        previous = self.audio_device.currentData()
+        previous_id = bytes(previous.id()) if previous else None
+        self.audio_device.clear()
+        try:
+            default = QMediaDevices.defaultAudioInput()
+            default_id = bytes(default.id()) if not default.isNull() else None
+            for device in list_inputs():
+                self.audio_device.addItem(device.description(), device)
+                wanted = previous_id if previous_id is not None else default_id
+                if bytes(device.id()) == wanted:
+                    self.audio_device.setCurrentIndex(self.audio_device.count() - 1)
+        except Exception as error:
+            self.detail = str(error)
 
     def devices_changed(self):
         if self.session:
@@ -260,6 +333,60 @@ class CameraPanel(QWidget):
             self.camera.start()
         except Exception as error:
             self.stop('Unable to start the camera.', str(error))
+        else:
+            if self.audio_check.isChecked() and self.session == token:
+                self.start_audio()
+
+    def start_audio(self):
+        try:
+            device = self.audio_device.currentData() or QMediaDevices.defaultAudioInput()
+            if device.isNull():
+                raise RuntimeError('No microphone found.')
+            rate, channels = self.audio_quality.currentData()
+            audio_format = QAudioFormat()
+            audio_format.setSampleRate(rate)
+            audio_format.setChannelCount(channels)
+            audio_format.setSampleFormat(QAudioFormat.SampleFormat.Int16)
+            if not device.isFormatSupported(audio_format):
+                audio_format = device.preferredFormat()
+                if (audio_format.sampleFormat() != QAudioFormat.SampleFormat.Int16
+                        or audio_format.sampleRate() not in AudioFeed.RATES
+                        or audio_format.channelCount() not in (1, 2)):
+                    raise RuntimeError('The microphone format is not supported.')
+            self.audio_pending = b''
+            self.audio_session = self.feed.audio.start(audio_format.sampleRate(), audio_format.channelCount())
+            self.audio_source = QAudioSource(device, audio_format, self)
+            self.audio_io = self.audio_source.start()
+            if self.audio_io is None:
+                raise RuntimeError('Unable to open the microphone.')
+            self.audio_io.readyRead.connect(self.read_audio)
+        except Exception as error:
+            self.stop_audio()
+            self.detail = self.controller.language.text('Microphone unavailable; streaming video only.') + ' ' + str(error)
+            self.retranslate()
+
+    def read_audio(self):
+        if not self.audio_io or not self.audio_session:
+            return
+        frame = 2 * self.feed.audio.channels
+        data = self.audio_pending + bytes(self.audio_io.readAll())
+        usable = len(data) - len(data) % frame
+        self.audio_pending = data[usable:]
+        if usable:
+            chunk = bytes(usable) if self.audio_mute.isChecked() else data[:usable]
+            self.audio_level_bar.setValue(audio_level(chunk))
+            self.feed.audio.publish(self.audio_session, chunk)
+
+    def stop_audio(self):
+        source, self.audio_source, self.audio_io = self.audio_source, None, None
+        session, self.audio_session = self.audio_session, None
+        if source:
+            source.stop()
+            source.deleteLater()
+        if session:
+            self.feed.audio.stop(session)
+        self.audio_pending = b''
+        self.audio_level_bar.setValue(0)
 
     def active_changed(self, active, token):
         if self.session != token:
@@ -304,6 +431,7 @@ class CameraPanel(QWidget):
         if token:
             self.feed.stop(token)
         self.monitor.stop()
+        self.stop_audio()
         camera, capture, sink = self.camera, self.capture, self.sink
         self.camera = self.capture = self.sink = None
         if camera:
@@ -346,6 +474,10 @@ class CameraPanel(QWidget):
             return
         active = self.session is not None
         self.devices.setEnabled(not active)
+        self.audio_check.setEnabled(not active)
+        self.audio_device.setEnabled(not active and self.audio_check.isChecked())
+        self.audio_mute.setEnabled(self.audio_check.isChecked())
+        self.audio_quality.setEnabled(not active and self.audio_check.isChecked())
         self.refresh_button.setEnabled(not active)
         self.start_button.setEnabled(not active and manager.is_running and self.devices.currentData() is not None)
         self.stop_button.setEnabled(active)
@@ -358,7 +490,15 @@ class CameraPanel(QWidget):
 
     def retranslate(self):
         text = self.controller.language.text
-        self.note.setText(text('Share one selected camera through the HTTP server, without audio or recording. Choose 1 to 30 FPS; the actual rate depends on the camera and network. Use a LAN address for other devices.'))
+        self.note.setText(text('Share one selected camera through the HTTP server, without recording. Audio is optional and off by default. Choose 1 to 30 FPS; the actual rate depends on the camera and network. Use a LAN address for other devices.'))
+        self.audio_check.setText(text('Include microphone audio (anyone who can open the camera page can listen)'))
+        self.audio_mute.setText(text('Mute microphone (stream silence)'))
+        self.audio_quality_label.setText(text('Audio quality:'))
+        self.audio_quality.setAccessibleName(text('Audio quality:'))
+        self.audio_quality.setToolTip(text('Higher audio quality uses more network bandwidth. Default: Voice.'))
+        self.audio_level_bar.setAccessibleName(text('Microphone level'))
+        for index, (label, _rate, _channels) in enumerate(AUDIO_QUALITIES):
+            self.audio_quality.setItemText(index, text(label))
         self.fps_label.setText(text('Transmission frame rate:'))
         self.fps.setAccessibleName(text('Transmission frame rate:'))
         self.fps.setToolTip(text('Changes apply while streaming. Default: 5 FPS.'))
@@ -370,6 +510,7 @@ class CameraPanel(QWidget):
         self.quality.setToolTip(text('Higher quality uses more network bandwidth. Default: 75%.'))
         self.update_metrics()
         self.devices.setAccessibleName(text('Camera'))
+        self.audio_device.setAccessibleName(text('Microphone'))
         self.url.setAccessibleName(text('Camera viewer URL'))
         for button, source in (
             (self.refresh_button, 'Refresh cameras'), (self.start_button, 'Start streaming'),

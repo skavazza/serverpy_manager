@@ -220,6 +220,71 @@ def list_android_devices(timeout=10):
     return devices
 
 
+_ENDPOINT_RE = re.compile(
+    r'^(?:\d{1,3}(?:\.\d{1,3}){3}|\[[0-9A-Fa-f:]+\]):(\d{1,5})$'
+)
+_MDNS_SERVICE_RE = re.compile(
+    r'^(\S+)\s+(_adb-tls-(?:connect|pairing)\._tcp\.?)\s+(\S+)$'
+)
+
+
+def _validate_endpoint(endpoint):
+    if not isinstance(endpoint, str):
+        raise ValueError('Enter the phone address as IP:port.')
+    endpoint = endpoint.strip()
+    match = _ENDPOINT_RE.fullmatch(endpoint)
+    if not match or not 1 <= int(match.group(1)) <= 65535:
+        raise ValueError('Enter the phone address as IP:port.')
+    return endpoint
+
+
+def discover_android_network_devices(timeout=15):
+    """Find phones advertising Wireless debugging on the local network (mDNS)."""
+    output = _run_adb(['mdns', 'services'], timeout)
+    found = []
+    for line in output.splitlines():
+        match = _MDNS_SERVICE_RE.fullmatch(line.strip())
+        if not match:
+            continue
+        name, service, endpoint = match.groups()
+        try:
+            endpoint = _validate_endpoint(endpoint)
+        except ValueError:
+            continue
+        found.append({
+            'name': name,
+            'endpoint': endpoint,
+            'pairing': 'pairing' in service,
+        })
+    return found
+
+
+def pair_android_device(endpoint, code, timeout=30):
+    """Pair with a phone using the six-digit code shown by Wireless debugging."""
+    endpoint = _validate_endpoint(endpoint)
+    if not isinstance(code, str) or not re.fullmatch(r'\d{6}', code.strip()):
+        raise ValueError('Enter the six-digit pairing code.')
+    output = _run_adb(['pair', endpoint, code.strip()], timeout).strip()
+    if 'successfully paired' not in output.lower():
+        raise OSError(output or 'Android pairing failed.')
+    return output
+
+
+def connect_android_device(endpoint, timeout=20):
+    """Connect to a paired phone over the network."""
+    endpoint = _validate_endpoint(endpoint)
+    output = _run_adb(['connect', endpoint], timeout).strip()
+    if not output.lower().startswith(('connected to', 'already connected to')):
+        raise OSError(output or 'Android network connection failed.')
+    return output
+
+
+def disconnect_android_device(endpoint, timeout=10):
+    """Drop a network ADB connection."""
+    endpoint = _validate_endpoint(endpoint)
+    return _run_adb(['disconnect', endpoint], timeout).strip()
+
+
 def list_android_directory(serial, remote_path, timeout=10):
     """List one directory using Android's ls output; directories have a trailing slash."""
     _validate_serial(serial)

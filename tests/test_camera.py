@@ -80,6 +80,24 @@ class TestCameraFeed(unittest.TestCase):
         self.assertIsNone(feed.snapshot())
         self.assertFalse(feed.publish(second, b'\xff\xd8late\xff\xd9'))
 
+    def test_audio_feed_validation_ring_limit_and_expiry(self):
+        now = [10]
+        audio = CameraFeed(clock=lambda: now[0]).audio
+        with self.assertRaises(ValueError):
+            audio.start(12345, 1)
+        session = audio.start(8000, 1)
+        self.assertFalse(audio.publish(session, b'\x00'))
+        self.assertFalse(audio.publish('other', b'\x00\x00'))
+        for _ in range(8):
+            self.assertTrue(audio.publish(session, b'\x00\x00' * 8000))
+        self.assertLessEqual(audio.end_offset - audio.start_offset, 8000 * 2 * audio.MAX_SECONDS)
+        _, end, _, _, data = audio.read()
+        self.assertEqual(len(data), 8000)
+        now[0] = 14
+        self.assertIsNone(audio.read())
+        audio.stop()
+        self.assertIsNone(audio.read())
+
 
 class TestCameraHTTP(unittest.TestCase):
     def setUp(self):
@@ -167,6 +185,26 @@ class TestCameraHTTP(unittest.TestCase):
         self.server.camera.publish(token, b'\xff\xd8next\xff\xd9')
         self.assertNotEqual(self.request('/_camera/frame.jpg')[1]['X-Camera-Frame-ID'], first['X-Camera-Frame-ID'])
 
+    def test_audio_requires_auth_is_unavailable_until_started_and_streams_by_offset(self):
+        self.assertEqual(self.request('/_camera/audio.pcm', auth=False)[0], 401)
+        status, headers, body = self.request('/_camera/audio.pcm')
+        self.assertEqual((status, body), (503, b''))
+        self.assertEqual(self.request('/_camera/frame.jpg')[1]['X-Camera-Audio'], '0')
+        session = self.server.camera.audio.start(16000, 1)
+        self.assertEqual(self.request('/_camera/frame.jpg')[1]['X-Camera-Audio'], '1')
+        self.assertTrue(self.server.camera.audio.publish(session, b'\x01\x00' * 800))
+        status, headers, body = self.request('/_camera/audio.pcm')
+        self.assertEqual(status, 200)
+        self.assertEqual(headers['Content-Type'], 'application/octet-stream')
+        self.assertEqual((headers['X-Audio-Rate'], headers['X-Audio-Channels']), ('16000', '1'))
+        self.assertEqual(len(body), 1600)
+        offset = headers['X-Audio-Offset']
+        self.server.camera.audio.publish(session, b'\x02\x00' * 100)
+        status, headers, body = self.request('/_camera/audio.pcm?session=%s&after=%s' % (headers['X-Audio-Session'], offset))
+        self.assertEqual(body, b'\x02\x00' * 100)
+        self.server.camera.stop()
+        self.assertEqual(self.request('/_camera/audio.pcm')[0], 503)
+
     def test_ip_and_rate_limit_still_apply(self):
         self.server.httpd.app_config['whitelist'] = ['192.0.2.1']
         self.assertEqual(self.request('/_camera/frame.jpg')[0], 403)
@@ -216,6 +254,18 @@ class FakeCapture(QObject):
 
 class FakeSink(QObject):
     videoFrameChanged = Signal(object)
+
+
+class TestAudioLevel(unittest.TestCase):
+    def test_silence_full_scale_and_quiet_levels(self):
+        self.assertEqual(camera_gui.audio_level(b''), 0)
+        self.assertEqual(camera_gui.audio_level(bytes(200)), 0)
+        loud = (-32768).to_bytes(2, 'little', signed=True) * 10
+        self.assertEqual(camera_gui.audio_level(loud), 100)
+        half = (16384).to_bytes(2, 'little', signed=True) * 10
+        self.assertTrue(80 <= camera_gui.audio_level(half) < 100)
+        quiet = (10).to_bytes(2, 'little', signed=True) * 10
+        self.assertLess(camera_gui.audio_level(quiet), camera_gui.audio_level(half))
 
 
 class TestCameraPanel(unittest.TestCase):

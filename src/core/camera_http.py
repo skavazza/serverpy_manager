@@ -1,7 +1,7 @@
 """Camera viewer endpoints; authorization is performed by the main handler."""
 
 from pathlib import Path
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from .camera import CAMERA_PREFIX
 
@@ -31,6 +31,21 @@ class CameraHTTP:
                 return True
             content = frame['jpeg']
             content_type = 'image/jpeg'
+        elif route == CAMERA_PREFIX + 'audio.pcm':
+            query = parse_qs(urlsplit(self.path).query)
+            try:
+                after = int(query.get('after', [''])[0])
+            except ValueError:
+                after = None
+            chunk = self.server.camera.audio.read(query.get('session', [''])[0], after)
+            if chunk is None:
+                self.send_response(503)
+                self.send_header('Retry-After', '1')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return True
+            session, offset, rate, channels, content = chunk
+            content_type = 'application/octet-stream'
         else:
             asset = {
                 CAMERA_PREFIX: ('camera.html', 'text/html; charset=utf-8'),
@@ -48,6 +63,11 @@ class CameraHTTP:
         if route == CAMERA_PREFIX + 'frame.jpg':
             self.send_header('X-Camera-Frame-ID', frame['frame_id'])
             self.send_header('X-Camera-Published-FPS', f"{frame['published_fps']:.2f}")
+        if route == CAMERA_PREFIX + 'audio.pcm':
+            self.send_header('X-Audio-Session', session)
+            self.send_header('X-Audio-Offset', str(offset))
+            self.send_header('X-Audio-Rate', str(rate))
+            self.send_header('X-Audio-Channels', str(channels))
         self.end_headers()
         if not head_only:
             self.wfile.write(content)

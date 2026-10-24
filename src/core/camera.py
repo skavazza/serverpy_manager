@@ -18,9 +18,84 @@ CAMERA_HEADERS = {
 CAMERA_RESERVED_HEADERS = {name.lower() for name in CAMERA_HEADERS} | {
     'access-control-allow-origin', 'access-control-allow-credentials',
     'content-type', 'content-length', 'expires', 'etag', 'last-modified',
-    'x-camera-fps',
+    'x-camera-fps', 'x-camera-audio',
     'x-camera-frame-id', 'x-camera-published-fps',
+    'x-audio-session', 'x-audio-offset', 'x-audio-rate', 'x-audio-channels',
 }
+
+
+class AudioFeed:
+    """Ring buffer of the most recent 16-bit PCM microphone audio, addressed by byte offset."""
+    MAX_SECONDS = 5
+    CATCH_UP_SECONDS = 2
+    START_SECONDS = .5
+    MAX_AGE = 3
+    MAX_RESPONSE = 1024 * 1024
+    RATES = (8000, 11025, 16000, 22050, 24000, 32000, 44100, 48000)
+
+    def __init__(self, clock=time.monotonic):
+        self.clock = clock
+        self.lock = threading.Lock()
+        self.session = None
+        self.rate = 16000
+        self.channels = 1
+        self.chunks = deque()
+        self.start_offset = 0
+        self.end_offset = 0
+        self.updated = 0
+
+    def start(self, rate=16000, channels=1):
+        if rate not in self.RATES or channels not in (1, 2):
+            raise ValueError('Unsupported audio format.')
+        with self.lock:
+            self.session = uuid4().hex
+            self.rate, self.channels = rate, channels
+            self.chunks.clear()
+            self.start_offset = self.end_offset = 0
+            self.updated = 0
+            return self.session
+
+    def stop(self, session=None):
+        with self.lock:
+            if session is None or session == self.session:
+                self.session = None
+                self.chunks.clear()
+                self.start_offset = self.end_offset = 0
+                self.updated = 0
+
+    def active(self):
+        with self.lock:
+            return self.session is not None
+
+    def publish(self, session, data):
+        with self.lock:
+            frame = 2 * self.channels
+            if session is None or session != self.session or not isinstance(data, bytes) or not data or len(data) % frame:
+                return False
+            self.chunks.append(data)
+            self.end_offset += len(data)
+            self.updated = self.clock()
+            limit = self.rate * frame * self.MAX_SECONDS
+            while self.end_offset - self.start_offset > limit and self.chunks:
+                self.start_offset += len(self.chunks.popleft())
+            return True
+
+    def read(self, session=None, after=None):
+        """Return (session, end_offset, rate, channels, data), or None when audio is unavailable."""
+        with self.lock:
+            if self.session is None or (self.updated and self.clock() - self.updated > self.MAX_AGE):
+                return None
+            frame = 2 * self.channels
+            per_second = self.rate * frame
+            if session == self.session and isinstance(after, int) and self.start_offset <= after <= self.end_offset:
+                begin = max(after, self.end_offset - self.CATCH_UP_SECONDS * per_second)
+            else:
+                begin = max(self.start_offset, self.end_offset - int(self.START_SECONDS * per_second))
+            begin -= (begin - self.start_offset) % frame
+            end = min(self.end_offset, begin + self.MAX_RESPONSE)
+            end -= (end - begin) % frame
+            data = b''.join(self.chunks)[begin - self.start_offset:end - self.start_offset] if end > begin else b''
+            return self.session, end, self.rate, self.channels, data
 
 
 class CameraFeed:
@@ -38,6 +113,7 @@ class CameraFeed:
         self.timestamps = deque(maxlen=512)
         self.sequence = 0
         self.size = (0, 0)
+        self.audio = AudioFeed(clock)
 
     @property
     def fps(self):
@@ -70,6 +146,7 @@ class CameraFeed:
                 self.started = None
                 self.timestamps.clear()
                 self.size = (0, 0)
+                self.audio.stop()
 
     def is_current(self, session):
         with self.lock:

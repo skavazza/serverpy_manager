@@ -22,8 +22,22 @@ processamento, rede e limites de requisições podem reduzir a taxa efetiva.
 O visualizador fica em `http://IP:PORTA/_camera/` (ou HTTPS conforme configurado).
 Ele atualiza a imagem até a taxa escolhida, por requisições JPEG
 sequenciais, com resolução máxima selecionável e proporção preservada.
-Não inclui áudio, gravação, WebRTC, RTSP ou acesso a câmeras IP por URL.
+Não inclui gravação, WebRTC, RTSP ou acesso a câmeras IP por URL.
 O aplicativo conserva somente a imagem mais recente em memória.
+
+## Áudio do microfone (opcional)
+
+Marque **Incluir áudio do microfone** antes de **Iniciar transmissão**. A opção
+vem desmarcada e não é salva entre aberturas. O app captura o microfone escolhido
+na lista ao lado (por padrão, o microfone padrão do Windows) em PCM de 16 bits e guarda só os últimos 5 segundos em memória. No
+visualizador, clique em **Ativar áudio** (o navegador exige esse clique para
+tocar som). O áudio passa pelas mesmas regras de autenticação, IPs e limite de
+requisições da câmera; quem puder abrir a página poderá ouvir o ambiente.
+
+O áudio é entregue por consultas HTTP (`/_camera/audio.pcm`) e tem atraso típico
+de 0,3 a 1 segundo; não é sincronizado quadro a quadro com a imagem. Se o
+microfone faltar ou o formato não for suportado, a transmissão segue só com
+vídeo e o painel avisa. Parar a transmissão ou o servidor encerra o áudio.
 
 ## Resolução, qualidade e FPS efetivo
 

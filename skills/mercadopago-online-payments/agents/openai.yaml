@@ -1,0 +1,6 @@
+interface:
+  display_name: "Mercado Pago online"
+  short_description: "Configurar e homologar checkout com evidencia"
+  default_prompt: "Use $mercadopago-online-payments para configurar ou diagnosticar pagamentos online, confirmar a API e homologar o fluxo sem expor credenciais."
+policy:
+  allow_implicit_invocation: true

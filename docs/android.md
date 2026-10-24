@@ -104,6 +104,24 @@ O servidor registra o tráfego USB reverso como loopback (`127.0.0.1`), não com
 o endereço Wi-Fi do celular. Por isso, uma lista de IPs permitidos não
 distingue esse acesso USB de outro acesso local.
 
+## Controlar o celular pela rede (Depuração sem fio)
+
+Requer Android 11 ou superior, com o celular e o computador na mesma rede.
+
+1. No celular: Opções do desenvolvedor → **Depuração sem fio** → ativar.
+2. Na aba **Android**, em **Conexão Wi-Fi**, clique em **Buscar celulares na
+   rede**. Os aparelhos anunciados aparecem na lista (`pairing` ou `connect`).
+3. Primeiro pareamento: no celular, toque em **Parear dispositivo com código**,
+   selecione a entrada `pairing` (ou digite o IP:porta mostrado), informe o
+   código de seis dígitos e clique em **Parear**.
+4. Selecione a entrada `connect` (ou digite o IP:porta da tela principal da
+   Depuração sem fio) e clique em **Conectar**. O aparelho passa a aparecer na
+   lista de dispositivos e aceita scrcpy, controles e transferências.
+5. **Desconectar** encerra a conexão de rede do aparelho selecionado.
+
+Se a busca não achar nada (a descoberta mDNS pode ser bloqueada pela rede),
+digite o endereço manualmente.
+
 ## Acesso pelo Wi-Fi
 
 Conecte o computador e o celular à mesma rede local, inicie o servidor HTTP e
