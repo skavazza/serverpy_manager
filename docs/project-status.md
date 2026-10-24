@@ -78,7 +78,10 @@ A sequência atual é:
 4. **Validação e entrega — em andamento:** fluxos automatizados Qt/HTTP/browser
    aprovados no Windows. Faltam aceite de hardware, controle Android, clone de
    revisão publicada e entrega privada (`QA-003`, `ANDR-007` e `REL-002`).
-5. **Manutenção:** decompor módulos grandes com regressão por área (`MAINT-001`).
+5. **Manutenção — iniciada:** rotas POST de arquivos/recuperação separadas do
+   handler principal em `src/core/file_http.py`, mantendo autenticação e
+   permissões no fluxo. Controller, armazenamento e rede continuam no plano
+   de extrações graduais (`MAINT-001`).
 6. **Novos recursos:** retomar Android por Wi-Fi após estabilização (`ANDR-008`).
 
 O roadmap também preserva o histórico de controle por USB, scrcpy e pareamento.

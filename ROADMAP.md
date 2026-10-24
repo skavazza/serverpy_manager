@@ -176,13 +176,23 @@ Não há novas datas de entrega definidas.
 
 ### Etapa 5 — Reduzir o custo de manutenção
 
-- [ ] `MAINT-001` — Decompor módulos grandes gradualmente
+- [~] `MAINT-001` — Decompor módulos grandes gradualmente
   - **Prioridade:** Média.
   - **Dependências:** etapas 1–3.
   - **Critérios:** separar rotas HTTP, montagem de configuração, armazenamento
     e ferramentas de rede em mudanças pequenas; preservar contratos,
     preferências, permissões e traduções; executar testes de regressão de cada
     área alterada. Evitar uma reescrita geral.
+  - **Primeiro incremento em 2026-10-24:** operações POST de arquivos e
+    recuperação extraídas para `src/core/file_http.py`; o handler principal
+    mantém seleção de raiz, autenticação e despacho antes da execução.
+    Conflitos de publicação retornam uma única resposta 409, sem cair em
+    uma segunda resposta 405. Teste de conflito confirma preservação da origem.
+  - **Validação:** regressão de 296 testes aprovada, mais um teste novo de
+    conflitos aprovado separadamente; smoke Chrome em pasta adicional aprovado
+    em desktop/mobile com toque.
+  - **Pendente:** montagem de configuração no controller, armazenamento e
+    ferramentas de rede; seguir com extrações pequenas e regressão por área.
   - **Referências:** [handlers](src/core/handlers.py),
     [controller](src/gui/controller.py), [armazenamento](src/gui/storage.py),
     [rede](src/gui/network_tools.py).
