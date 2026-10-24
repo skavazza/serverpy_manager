@@ -176,7 +176,7 @@ Não há novas datas de entrega definidas.
 
 ### Etapa 5 — Reduzir o custo de manutenção
 
-- [~] `MAINT-001` — Decompor módulos grandes gradualmente
+- [x] `MAINT-001` — Decompor módulos grandes gradualmente
   - **Prioridade:** Média.
   - **Dependências:** etapas 1–3.
   - **Critérios:** separar rotas HTTP, montagem de configuração, armazenamento
@@ -200,11 +200,23 @@ Não há novas datas de entrega definidas.
   - **Validação do segundo incremento:** 300 testes aprovados em Windows;
     roteiro Qt/HTTP aprovado nas dez abas, incluindo autenticação, permissões,
     transferências, recuperação e reinício do servidor.
-  - **Pendente:** armazenamento e ferramentas de rede; seguir com extrações
-    pequenas e regressão por área.
+  - **Terceiro incremento em 2026-10-24:** painel Android e seus trabalhadores
+    extraídos para `src/gui/android_panel.py`; `storage.py` fica dedicado a
+    unidades USB. SSH/SFTP e seus trabalhadores extraídos para
+    `src/gui/ssh_panel.py`; `network_tools.py` mantém QR Code e diagnóstico.
+    A navegação usa os módulos próprios e os caminhos públicos anteriores
+    continuam disponíveis por compatibilidade.
+  - **Escopo concluído:** primeiro ciclo de separação de rotas HTTP, montagem
+    de configuração, armazenamento e ferramentas de rede. Os corpos das classes
+    e funções deste terceiro incremento foram comparados antes/depois e
+    preservados; preferências, traduções e fluxos não foram reescritos.
+  - **Validação final:** 300 testes aprovados em Windows, incluindo 71 testes
+    direcionados de Android/USB/SSH; roteiro Qt/HTTP aprovado nas dez abas e
+    compatibilidade dos caminhos públicos anteriores de importação conferida.
   - **Referências:** [handlers](src/core/handlers.py),
     [controller](src/gui/controller.py), [armazenamento](src/gui/storage.py),
-    [rede](src/gui/network_tools.py).
+    [Android](src/gui/android_panel.py), [rede](src/gui/network_tools.py),
+    [SSH/SFTP](src/gui/ssh_panel.py).
 
 Novas funcionalidades, incluindo `ANDR-008`, vêm após a estabilização e a
 validação USB. O histórico Android abaixo permanece preservado.
@@ -245,7 +257,7 @@ validação USB. O histórico Android abaixo permanece preservado.
     usuário e reportar erros de download ou validação.
   - **Dependências:** `ANDR-002`
   - **Referência:** [src/core/scrcpy.py](src/core/scrcpy.py),
-    [src/gui/storage.py](src/gui/storage.py), [tests/test_android.py](tests/test_android.py),
+    [src/gui/android_panel.py](src/gui/android_panel.py), [tests/test_android.py](tests/test_android.py),
     [docs/android.md](docs/android.md)
 - [x] `ANDR-004` — Criar aba Android e gerenciar sessões do dispositivo <!-- completed: 2026-10-24 01:53 -->
   - **Prioridade:** Alta
@@ -254,7 +266,7 @@ validação USB. O histórico Android abaixo permanece preservado.
     encerramento do app.
   - **Dependências:** `ANDR-003`
   - **Referência:** [src/gui/navigation.py](src/gui/navigation.py),
-    [src/gui/storage.py](src/gui/storage.py), [tests/test_android.py](tests/test_android.py),
+    [src/gui/android_panel.py](src/gui/android_panel.py), [tests/test_android.py](tests/test_android.py),
     [tests/test_language.py](tests/test_language.py)
 - [x] `ANDR-005` — Implementar espelhamento e controles predefinidos <!-- completed: 2026-10-24 01:53 -->
   - **Prioridade:** Alta
@@ -292,7 +304,7 @@ validação USB. O histórico Android abaixo permanece preservado.
     tela ligada/desligada e opções da janela; preservar os padrões atuais.
   - **Validado:** suíte completa (255 testes; 4 ignorados), incluindo os
     argumentos de inicialização e as traduções da interface.
-  - **Referência:** [src/gui/storage.py](src/gui/storage.py),
+  - **Referência:** [src/gui/android_panel.py](src/gui/android_panel.py),
     [src/gui/i18n.py](src/gui/i18n.py), [tests/test_android.py](tests/test_android.py),
     [docs/android.md](docs/android.md).
 - [x] `ANDR-010` — Adicionar configurações avançadas de áudio e orientação scrcpy <!-- completed: 2026-10-24 02:20 -->
@@ -303,7 +315,7 @@ validação USB. O histórico Android abaixo permanece preservado.
   - **Dependências:** `ANDR-009`
   - **Validado:** suíte completa (257 testes; 4 ignorados), incluindo os
     argumentos avançados e a tradução dos controles.
-  - **Referência:** [src/gui/storage.py](src/gui/storage.py),
+  - **Referência:** [src/gui/android_panel.py](src/gui/android_panel.py),
     [src/gui/i18n.py](src/gui/i18n.py), [tests/test_android.py](tests/test_android.py),
     [docs/android.md](docs/android.md).
 
@@ -311,7 +323,7 @@ validação USB. O histórico Android abaixo permanece preservado.
 
 - [x] `ANDR-001` — Conectar Android via ADB USB para transferência e acesso ao servidor <!-- completed: 2026-10-24 01:16 -->
   - **Referência:** [src/core/android.py](src/core/android.py),
-    [src/gui/storage.py](src/gui/storage.py), [docs/android.md](docs/android.md)
+    [src/gui/android_panel.py](src/gui/android_panel.py), [docs/android.md](docs/android.md)
 - [x] `ANDR-002` — Instalar Platform-Tools oficial por usuário no Windows/Linux x86_64 <!-- completed: 2026-10-24 01:27 -->
   - **Referência:** [src/core/android.py](src/core/android.py),
     [tests/test_android.py](tests/test_android.py), [docs/android.md](docs/android.md)

@@ -59,6 +59,9 @@ Veja os guias [Android](android.md), [SSH](ssh.md),
 - Após a segunda extração de manutenção: 300 testes aprovados no ambiente
   Windows existente; roteiro Qt/HTTP aprovado nas dez abas. A instalação limpa
   anterior permanece registrada com 296 testes e o snapshot daquela rodada.
+- Primeiro ciclo de manutenção concluído: separação adicional de Android/USB
+  e SSH/diagnósticos aprovada nos 300 testes e no roteiro Qt/HTTP das dez abas;
+  caminhos públicos antigos de importação preservados.
 - Uso interativo no Windows, hardware físico de câmera/scanner/impressora e vários caminhos de
   rede precisam de validações específicas; testes simulados não substituem
   essas verificações.
@@ -81,12 +84,12 @@ A sequência atual é:
 4. **Validação e entrega — em andamento:** fluxos automatizados Qt/HTTP/browser
    aprovados no Windows. Faltam aceite de hardware, controle Android, clone de
    revisão publicada e entrega privada (`QA-003`, `ANDR-007` e `REL-002`).
-5. **Manutenção — iniciada:** rotas POST de arquivos/recuperação separadas do
+5. **Manutenção — primeiro ciclo concluído:** rotas POST de arquivos/recuperação separadas do
    handler principal em `src/core/file_http.py`, mantendo autenticação e
    permissões no fluxo. Montagem da configuração separada do controller em
    `src/gui/server_config.py`, com cópia das opções mutáveis para isolar a
-   sessão. Armazenamento e rede continuam no plano de extrações graduais
-   (`MAINT-001`).
+   sessão. Android separado de unidades USB e SSH/SFTP separado de QR Code e
+   diagnóstico, preservando os caminhos públicos de importação (`MAINT-001`).
 6. **Novos recursos:** retomar Android por Wi-Fi após estabilização (`ANDR-008`).
 
 O roadmap também preserva o histórico de controle por USB, scrcpy e pareamento.

@@ -17,7 +17,7 @@ from src.core.ssh import (
     list_sftp_directory, sftp_transfer_with_password, ssh_open_terminal, ssh_run_command,
 )
 from src.gui.i18n import InterfaceLanguage
-from src.gui.network_tools import SSHPanel, SFTPBrowserDialog, _SFTPTask
+from src.gui.ssh_panel import SSHPanel, SFTPBrowserDialog, _SFTPTask
 
 
 class TestSSHSupport(unittest.TestCase):
@@ -202,8 +202,8 @@ class TestSSHSupport(unittest.TestCase):
                 '/tmp/local.txt', '/remote/local.txt',
             ),
         )
-        with patch('src.gui.network_tools.sftp_transfer_with_password') as transfer, \
-                patch('src.gui.network_tools.subprocess.Popen') as popen:
+        with patch('src.gui.ssh_panel.sftp_transfer_with_password') as transfer, \
+                patch('src.gui.ssh_panel.subprocess.Popen') as popen:
             task.run()
 
         transfer.assert_called_once()
@@ -288,7 +288,7 @@ class TestSSHSupport(unittest.TestCase):
             process.communicate.return_value = ('', None)
             task = _SFTPTask(['sftp'], 'get remote local\n', 'download', str(temporary), str(destination))
 
-            with patch('src.gui.network_tools.subprocess.Popen', return_value=process):
+            with patch('src.gui.ssh_panel.subprocess.Popen', return_value=process):
                 task.run()
 
             self.assertEqual(destination.read_text(encoding='utf-8'), 'new')
@@ -309,7 +309,7 @@ class TestSSHSupport(unittest.TestCase):
             task = _SFTPTask(['sftp'], 'get remote local\n', 'download', str(temporary), str(destination))
             task.cancel()
 
-            with patch('src.gui.network_tools.subprocess.Popen', return_value=process):
+            with patch('src.gui.ssh_panel.subprocess.Popen', return_value=process):
                 task.run()
 
             self.assertEqual(destination.read_text(encoding='utf-8'), 'old')
@@ -318,8 +318,8 @@ class TestSSHSupport(unittest.TestCase):
     def test_connection_check_runs_in_background_and_reenables_controls(self):
         panel = SSHPanel(SimpleNamespace(settings=None, language=InterfaceLanguage()))
         tasks = []
-        with patch('src.gui.network_tools.QThreadPool.globalInstance') as pool, \
-                patch('src.gui.network_tools.ssh_check_connection', return_value=(True, 'SSH connection is available.')) as check:
+        with patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool, \
+                patch('src.gui.ssh_panel.ssh_check_connection', return_value=(True, 'SSH connection is available.')) as check:
             pool.return_value.start.side_effect = tasks.append
             panel.check_connection()
 
@@ -343,8 +343,8 @@ class TestSSHSupport(unittest.TestCase):
         panel = SSHPanel(SimpleNamespace(settings=None, language=InterfaceLanguage()))
         panel.command.setText('uname -a')
         tasks = []
-        with patch('src.gui.network_tools.QThreadPool.globalInstance') as pool, \
-                patch('src.gui.network_tools.ssh_run_command', return_value=(True, 'first line\nsecond line\nliteral {value}')) as run:
+        with patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool, \
+                patch('src.gui.ssh_panel.ssh_run_command', return_value=(True, 'first line\nsecond line\nliteral {value}')) as run:
             pool.return_value.start.side_effect = tasks.append
             panel.run_command()
 
@@ -372,8 +372,8 @@ class TestSSHSupport(unittest.TestCase):
     def test_remote_command_failure_is_shown_in_output_area(self):
         panel = SSHPanel(SimpleNamespace(settings=None, language=InterfaceLanguage()))
         tasks = []
-        with patch('src.gui.network_tools.QThreadPool.globalInstance') as pool, \
-                patch('src.gui.network_tools.ssh_run_command', return_value=(False, 'permission denied\ncheck your key')):
+        with patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool, \
+                patch('src.gui.ssh_panel.ssh_run_command', return_value=(False, 'permission denied\ncheck your key')):
             pool.return_value.start.side_effect = tasks.append
             panel.run_command()
             tasks[0].run()
@@ -442,11 +442,11 @@ class TestSSHSupport(unittest.TestCase):
 
     def test_selecting_identity_uses_file_dialog_and_cancel_keeps_current_value(self):
         panel = SSHPanel(SimpleNamespace(settings=None, language=InterfaceLanguage()))
-        with patch('src.gui.network_tools.QFileDialog.getOpenFileName', return_value=('/keys/id_ed25519', '')):
+        with patch('src.gui.ssh_panel.QFileDialog.getOpenFileName', return_value=('/keys/id_ed25519', '')):
             panel.select_identity_file()
         self.assertEqual(panel.identity_file.text(), '/keys/id_ed25519')
 
-        with patch('src.gui.network_tools.QFileDialog.getOpenFileName', return_value=('', '')):
+        with patch('src.gui.ssh_panel.QFileDialog.getOpenFileName', return_value=('', '')):
             panel.select_identity_file()
         self.assertEqual(panel.identity_file.text(), '/keys/id_ed25519')
         panel.close()
@@ -454,10 +454,10 @@ class TestSSHSupport(unittest.TestCase):
     def test_upload_requires_confirmation_and_runs_sftp_in_background(self):
         panel = SSHPanel(SimpleNamespace(settings=None, language=InterfaceLanguage()))
         tasks = []
-        with patch('src.gui.network_tools.QFileDialog.getOpenFileName', return_value=('/tmp/input.txt', '')), \
-                patch('src.gui.network_tools.build_sftp_transfer', return_value=(['sftp'], 'put source target\n')) as build, \
-                patch('src.gui.network_tools.QMessageBox.question', return_value=QMessageBox.Yes) as confirm, \
-                patch('src.gui.network_tools.QThreadPool.globalInstance') as pool:
+        with patch('src.gui.ssh_panel.QFileDialog.getOpenFileName', return_value=('/tmp/input.txt', '')), \
+                patch('src.gui.ssh_panel.build_sftp_transfer', return_value=(['sftp'], 'put source target\n')) as build, \
+                patch('src.gui.ssh_panel.QMessageBox.question', return_value=QMessageBox.Yes) as confirm, \
+                patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool:
             pool.return_value.start.side_effect = tasks.append
             panel.upload_file()
 
@@ -477,10 +477,10 @@ class TestSSHSupport(unittest.TestCase):
 
     def test_upload_cancelled_at_overwrite_prompt_does_not_start_transfer(self):
         panel = SSHPanel(SimpleNamespace(settings=None, language=InterfaceLanguage()))
-        with patch('src.gui.network_tools.QFileDialog.getOpenFileName', return_value=('/tmp/input.txt', '')), \
-                patch('src.gui.network_tools.build_sftp_transfer', return_value=(['sftp'], 'put source target\n')), \
-                patch('src.gui.network_tools.QMessageBox.question', return_value=QMessageBox.No), \
-                patch('src.gui.network_tools.QThreadPool.globalInstance') as pool:
+        with patch('src.gui.ssh_panel.QFileDialog.getOpenFileName', return_value=('/tmp/input.txt', '')), \
+                patch('src.gui.ssh_panel.build_sftp_transfer', return_value=(['sftp'], 'put source target\n')), \
+                patch('src.gui.ssh_panel.QMessageBox.question', return_value=QMessageBox.No), \
+                patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool:
             panel.upload_file()
 
         pool.return_value.start.assert_not_called()
@@ -490,7 +490,7 @@ class TestSSHSupport(unittest.TestCase):
     def test_sftp_browser_selects_remote_files_and_navigates_directories(self):
         controller = SimpleNamespace(language=InterfaceLanguage())
         tasks = []
-        with patch('src.gui.network_tools.QThreadPool.globalInstance') as pool:
+        with patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool:
             pool.return_value.start.side_effect = tasks.append
             dialog = SFTPBrowserDialog(
                 controller, ('example.com', 'dev', 2222, None, 'key', None),
@@ -510,7 +510,7 @@ class TestSSHSupport(unittest.TestCase):
 
         dialog.entries.setCurrentItem(folder)
         self.assertFalse(dialog.use_button.isEnabled())
-        with patch('src.gui.network_tools.QThreadPool.globalInstance') as pool:
+        with patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool:
             pool.return_value.start.side_effect = tasks.append
             dialog.open_entry(folder, 0)
         self.assertEqual(dialog.remote_path, '/folder with spaces')
@@ -532,7 +532,7 @@ class TestSSHSupport(unittest.TestCase):
     def test_sftp_browser_back_and_forward_navigation(self):
         controller = SimpleNamespace(language=InterfaceLanguage())
         tasks = []
-        with patch('src.gui.network_tools.QThreadPool.globalInstance') as pool:
+        with patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool:
             pool.return_value.start.side_effect = tasks.append
             dialog = SFTPBrowserDialog(
                 controller, ('example.com', 'dev', 2222, None, 'key', None),
@@ -569,7 +569,7 @@ class TestSSHSupport(unittest.TestCase):
         dialog = MagicMock()
         dialog.exec.return_value = QDialog.Accepted
         dialog.selected_path = '/home/dev/report.txt'
-        with patch('src.gui.network_tools.SFTPBrowserDialog', return_value=dialog) as browser:
+        with patch('src.gui.ssh_panel.SFTPBrowserDialog', return_value=dialog) as browser:
             panel.browse_remote_file()
         self.assertEqual(panel.remote_file.text(), '/home/dev/report.txt')
         browser.assert_called_once_with(
@@ -584,10 +584,10 @@ class TestSSHSupport(unittest.TestCase):
             destination = os.path.join(directory, 'download.txt')
             Path(destination).write_text('existing', encoding='utf-8')
             panel.remote_file.setText('/remote/download.txt')
-            with patch('src.gui.network_tools.QFileDialog.getSaveFileName', return_value=(destination, '')) as choose, \
-                    patch('src.gui.network_tools.build_sftp_transfer', return_value=(['sftp'], 'get remote local\n')) as build, \
-                    patch('src.gui.network_tools.QMessageBox.question', return_value=QMessageBox.Yes) as confirm, \
-                    patch('src.gui.network_tools.QThreadPool.globalInstance') as pool:
+            with patch('src.gui.ssh_panel.QFileDialog.getSaveFileName', return_value=(destination, '')) as choose, \
+                    patch('src.gui.ssh_panel.build_sftp_transfer', return_value=(['sftp'], 'get remote local\n')) as build, \
+                    patch('src.gui.ssh_panel.QMessageBox.question', return_value=QMessageBox.Yes) as confirm, \
+                    patch('src.gui.ssh_panel.QThreadPool.globalInstance') as pool:
                 pool.return_value.start.side_effect = tasks.append
                 panel.download_file()
 

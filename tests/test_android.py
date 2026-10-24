@@ -24,7 +24,7 @@ from src.core.android import (
 )
 from src.core.scrcpy import install_scrcpy, scrcpy_executable
 from src.gui.i18n import InterfaceLanguage
-from src.gui.storage import AndroidDevicePanel
+from src.gui.android_panel import AndroidDevicePanel
 
 
 _HOST_CHMOD = Path.chmod
@@ -503,7 +503,7 @@ class TestAndroidDevicePanel(unittest.TestCase):
         self.assertIn('Nenhum dispositivo Android autorizado', self.panel.status.text())
         self.assertFalse(self.panel.pull_button.isEnabled())
 
-        with patch('src.gui.storage.QThreadPool.globalInstance') as pool:
+        with patch('src.gui.android_panel.QThreadPool.globalInstance') as pool:
             pool.return_value.start.side_effect = lambda task: None
             self.panel.task_finished(True, (
                 'devices', True, [
@@ -532,8 +532,8 @@ class TestAndroidDevicePanel(unittest.TestCase):
         )
         self.panel.device.blockSignals(False)
         tasks = []
-        with patch('src.gui.storage.QThreadPool.globalInstance') as pool, patch(
-            'src.gui.storage.set_android_reverse', return_value='',
+        with patch('src.gui.android_panel.QThreadPool.globalInstance') as pool, patch(
+            'src.gui.android_panel.set_android_reverse', return_value='',
         ) as reverse:
             pool.return_value.start.side_effect = tasks.append
             self.panel.set_reverse(True)
@@ -544,8 +544,8 @@ class TestAndroidDevicePanel(unittest.TestCase):
         self.assertIn('https://127.0.0.1:8443', self.panel.status.text())
 
         server.is_running = False
-        with patch('src.gui.storage.QThreadPool.globalInstance') as pool, patch(
-            'src.gui.storage.set_android_reverse', return_value='',
+        with patch('src.gui.android_panel.QThreadPool.globalInstance') as pool, patch(
+            'src.gui.android_panel.set_android_reverse', return_value='',
         ) as reverse:
             pool.return_value.start.side_effect = tasks.append
             self.panel.set_reverse(False)
@@ -553,14 +553,14 @@ class TestAndroidDevicePanel(unittest.TestCase):
             reverse.assert_called_once_with('device-1', 8443, False)
 
     def test_scrcpy_install_button_state_and_completion(self):
-        with patch('src.gui.storage.scrcpy_download_supported', return_value=True), patch(
-            'src.gui.storage.scrcpy_available', return_value=False,
+        with patch('src.gui.android_panel.scrcpy_download_supported', return_value=True), patch(
+            'src.gui.android_panel.scrcpy_available', return_value=False,
         ):
             self.panel.update_actions()
             self.assertTrue(self.panel.install_scrcpy_button.isEnabled())
 
-        with patch('src.gui.storage.scrcpy_download_supported', return_value=True), patch(
-            'src.gui.storage.scrcpy_available', return_value=True,
+        with patch('src.gui.android_panel.scrcpy_download_supported', return_value=True), patch(
+            'src.gui.android_panel.scrcpy_available', return_value=True,
         ):
             self.panel.update_actions()
             self.assertFalse(self.panel.install_scrcpy_button.isEnabled())
@@ -578,8 +578,8 @@ class TestAndroidDevicePanel(unittest.TestCase):
             'Pixel', {'serial': 'usb-123', 'state': 'device', 'model': 'Pixel 8'},
         )
         self.panel.device.blockSignals(False)
-        with patch('src.gui.storage.scrcpy_executable', return_value='/tools/scrcpy') as executable, patch(
-            'src.gui.storage.scrcpy_available', return_value=True,
+        with patch('src.gui.android_panel.scrcpy_executable', return_value='/tools/scrcpy') as executable, patch(
+            'src.gui.android_panel.scrcpy_available', return_value=True,
         ), patch.object(self.panel.scrcpy_process, 'start') as start:
             self.panel.start_scrcpy()
         executable.assert_called_once()
@@ -610,8 +610,8 @@ class TestAndroidDevicePanel(unittest.TestCase):
         ):
             checkbox.setChecked(True)
 
-        with patch('src.gui.storage.scrcpy_executable', return_value='/tools/scrcpy'), patch(
-            'src.gui.storage.scrcpy_available', return_value=True,
+        with patch('src.gui.android_panel.scrcpy_executable', return_value='/tools/scrcpy'), patch(
+            'src.gui.android_panel.scrcpy_available', return_value=True,
         ), patch.object(self.panel.scrcpy_process, 'start'):
             self.panel.start_scrcpy()
 
@@ -660,8 +660,8 @@ class TestAndroidDevicePanel(unittest.TestCase):
             self.panel.display_orientation.findData('90'),
         )
 
-        with patch('src.gui.storage.scrcpy_executable', return_value='/tools/scrcpy'), patch(
-            'src.gui.storage.scrcpy_available', return_value=True,
+        with patch('src.gui.android_panel.scrcpy_executable', return_value='/tools/scrcpy'), patch(
+            'src.gui.android_panel.scrcpy_available', return_value=True,
         ), patch.object(self.panel.scrcpy_process, 'start'):
             self.panel.start_scrcpy()
 
@@ -682,7 +682,7 @@ class TestAndroidDevicePanel(unittest.TestCase):
         self.assertFalse(self.panel.audio_bitrate.isEnabled())
 
     def test_scrcpy_session_does_not_start_without_selected_authorized_device(self):
-        with patch('src.gui.storage.scrcpy_executable') as executable, patch.object(
+        with patch('src.gui.android_panel.scrcpy_executable') as executable, patch.object(
             self.panel.scrcpy_process, 'start',
         ) as start:
             self.panel.start_scrcpy()
@@ -715,14 +715,14 @@ class TestAndroidDevicePanel(unittest.TestCase):
         kill.assert_called_once()
 
     def test_adb_install_button_state_and_completion(self):
-        with patch('src.gui.storage.android_adb_install_supported', return_value=True), patch(
-            'src.gui.storage.android_adb_available', return_value=False,
+        with patch('src.gui.android_panel.android_adb_install_supported', return_value=True), patch(
+            'src.gui.android_panel.android_adb_available', return_value=False,
         ):
             self.panel.update_actions()
             self.assertTrue(self.panel.install_adb_button.isEnabled())
 
-        with patch('src.gui.storage.android_adb_install_supported', return_value=True), patch(
-            'src.gui.storage.android_adb_available', return_value=True,
+        with patch('src.gui.android_panel.android_adb_install_supported', return_value=True), patch(
+            'src.gui.android_panel.android_adb_available', return_value=True,
         ):
             self.panel.update_actions()
             self.assertFalse(self.panel.install_adb_button.isEnabled())

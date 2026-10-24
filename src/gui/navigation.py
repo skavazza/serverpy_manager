@@ -5,9 +5,11 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QLabel, QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget,
 )
-from .storage import AndroidDevicePanel, StoragePanel
+from .android_panel import AndroidDevicePanel
+from .storage import StoragePanel
 from .shares import SharedFoldersPanel
-from .network_tools import NetworkPanel, SSHPanel
+from .network_tools import NetworkPanel
+from .ssh_panel import SSHPanel
 from .activity import ActivityPanel
 from .temp_links import TemporaryLinksPanel
 from .findport import FindPortPanel
