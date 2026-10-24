@@ -1,0 +1,1203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="theme-color" content="#182231">
+    <link rel="manifest" href="/_serverpy/pwa/manifest.webmanifest" crossorigin="use-credentials">
+    <link rel="icon" type="image/png" href="/_serverpy/pwa/icon-192.png">
+    <link rel="apple-touch-icon" href="/_serverpy/pwa/icon-192.png">
+    <script src="/_serverpy/pwa/pwa.js" defer></script>
+    <script src="/_serverpy/pwa/latency.js" defer></script>
+    <title>ServerPy | {title}</title>
+    <script>
+        try { document.documentElement.dataset.theme = localStorage.getItem('serverpy_theme') || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); } catch {}
+    </script>
+    <style>{styles}</style>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.7/ace.js"></script>
+</head>
+<body data-url-prefix="{url_prefix}" data-allow-mod="{allow_mod}" data-root-id="{root_id}" data-permissions="{permissions}">
+    <header class="app-header">
+        <div class="brand"><span class="brand-mark">S</span><div><strong>ServerPy</strong><small data-i18n="File explorer">File explorer</small></div></div>
+        <div class="header-settings">
+            <button class="tool-btn" id="btn-install" hidden><span data-i18n="INSTALL APP">INSTALL APP</span></button>
+            <button class="tool-btn" id="btn-theme" onclick="toggleTheme()" aria-label="Switch theme" data-i18n-aria="Switch theme"><span id="theme-icon"></span><span id="theme-label">Dark theme</span></button>
+            <label for="language-select" data-i18n="Language:">Language:</label>
+            <select id="language-select" class="language-select" onchange="setLanguage(this.value)"><option value="en">English</option><option value="pt">Português</option></select>
+        </div>
+    </header>
+    <div id="connection-status" role="status" aria-live="polite" hidden data-i18n="Offline. Connect to the server to access files.">Offline. Connect to the server to access files.</div>
+    <div class="toolbar">
+        <button class="tool-btn primary" onclick="newFolder()"><i>📁</i> NEW FOLDER</button>
+        <button class="tool-btn" onclick="newFile()"><i>📄</i> NEW FILE</button>
+        <button class="tool-btn primary" onclick="document.getElementById('upload-input').click()"><i>📤</i> UPLOAD</button>
+        <input type="file" id="upload-input" multiple onchange="uploadFiles(this.files)">
+        
+        <div class="toolbar-divider"></div>
+        
+        <button class="tool-btn" id="btn-rename" onclick="renameSelected()" disabled><i>✏️</i> RENAME</button>
+        <button class="tool-btn" id="btn-cut" onclick="copyCutSelected('cut')" disabled><i>✂️</i> CUT</button>
+        <button class="tool-btn" id="btn-copy" onclick="copyCutSelected('copy')" disabled><i>📋</i> COPY</button>
+        <button class="tool-btn" id="btn-paste" onclick="pasteClipboard()" disabled><i>📥</i> PASTE</button>
+        <button class="tool-btn danger" id="btn-delete" onclick="deleteSelected()" disabled><i>🗑️</i> DELETE</button>
+        <button class="tool-btn" id="btn-edit" onclick="openEditor()" disabled><i>📝</i> EDIT</button>
+        <button class="tool-btn" id="btn-preview" onclick="previewSelected()" disabled>PREVIEW</button>
+
+        <div class="spacer"></div>
+        
+        <div class="search-container">
+            <span class="search-icon">🔍</span>
+            <input type="search" class="search-input" aria-label="Search files" data-i18n-aria="Search files" placeholder="Search files..." oninput="handleSearch(this.value)">
+        </div>
+        <label class="search-scope"><input type="checkbox" id="search-recursive" onchange="handleSearch(document.querySelector('.search-input').value)"><span data-i18n="Include subfolders">Include subfolders</span></label>
+        
+        <button class="tool-btn" onclick="downloadZip()"><i>📦</i> DOWNLOAD AS ZIP</button>
+    </div>
+    
+    {shares_nav}
+    <div class="breadcrumb">
+        <div id="breadcrumbs">{path}</div>
+    </div>
+    <div class="view-toolbar" role="group" aria-label="View" data-i18n-aria="View">
+        <button class="tool-btn" id="btn-view-grid" onclick="setView('grid')" aria-pressed="true">ICONS</button>
+        <button class="tool-btn" id="btn-view-list" onclick="setView('list')" aria-pressed="false">LIST</button>
+        <button class="tool-btn" id="btn-sidebar" onclick="toggleSidebar()" aria-expanded="false" aria-controls="folder-sidebar">FOLDER PANEL</button>
+        <button class="tool-btn" id="btn-favorite" onclick="toggleFavorite()">FAVORITE</button>
+        <button class="tool-btn" onclick="openRecovery('trash')">TRASH</button>
+        <button class="tool-btn" onclick="openRecovery('moves')">RECENT MOVES</button>
+        <button class="tool-btn" id="btn-transfers" onclick="openTransfers()">TRANSFERS</button>
+        <div class="sort-controls"><label for="sort-select" data-i18n="Sort by:">Sort by:</label>
+        <select id="sort-select" class="language-select" onchange="sortFiles(this.value)">
+            <option value="name" data-i18n="Name">Name</option>
+            <option value="size" data-i18n="Size">Size</option>
+            <option value="modified" data-i18n="Modified">Modified</option>
+        </select>
+        <button class="tool-btn" id="btn-sort-direction" onclick="toggleSortDirection()" aria-label="Descending" data-i18n-aria="Descending">↓</button>
+        </div>
+    </div>
+    <div class="workspace">
+    <aside class="folder-sidebar" id="folder-sidebar" hidden aria-label="Folders" data-i18n-aria="Folders">
+        <button class="tool-btn sidebar-action" onclick="toggleSidebar(false)" data-i18n="CLOSE">CLOSE</button>
+        <h2 data-i18n="Quick access">Quick access</h2>
+        <a href="{url_prefix}/" class="tool-btn sidebar-action" data-i18n="Root folder">Root folder</a>
+        <button class="tool-btn sidebar-action" onclick="openRecovery('trash')" data-i18n="Trash">Trash</button>
+        <h2 data-i18n="Favorites">Favorites</h2>
+        <nav id="favorite-list" aria-label="Favorites" data-i18n-aria="Favorites"></nav>
+        <h2 data-i18n="Folders">Folders</h2>
+        <nav id="folder-tree" aria-label="Folder navigation" data-i18n-aria="Folder navigation"></nav>
+    </aside>
+    <div class="content" onclick="clearSelection(event)">
+        <div class="folder-heading"><h1 id="folder-title"></h1><span id="file-count" role="status"></span></div>
+        <div id="search-status" role="status" aria-live="polite" hidden></div>
+        <div id="search-results" class="search-results" hidden></div>
+        <div class="list-headings"><span class="heading-name" data-i18n="Name">Name</span><span class="heading-size" data-i18n="Size">Size</span><span class="heading-date" data-i18n="Modified">Modified</span></div>
+        <div class="grid" id="fileGrid">
+            {items}
+        </div>
+        <div id="folder-empty" class="empty-state" hidden data-i18n="This folder is empty">This folder is empty</div>
+        {intents_ui}
+    </div>
+    </div>
+
+    <section id="operation-panel" hidden aria-label="Operations" data-i18n-aria="Operations">
+        <div id="operation-status" role="status" aria-live="polite"></div>
+        <progress id="operation-progress" max="100" value="0" aria-label="Progress" data-i18n-aria="Progress"></progress>
+        <div id="operation-errors" role="alert"></div>
+        <button class="tool-btn" onclick="refreshListing()">REFRESH</button>
+        <button class="tool-btn" data-mutation onclick="document.getElementById('operation-panel').hidden = true">CLOSE</button>
+    </section>
+    <footer class="server-status" id="server-status" data-state="checking" aria-label="Server connection" data-i18n-aria="Server connection">
+        <span class="connection-dot" aria-hidden="true"></span>
+        <span data-i18n="Server">Server</span>
+        <span id="server-latency">—</span>
+        <span class="latency-separator" aria-hidden="true">·</span>
+        <span data-i18n="Average">Average</span>
+        <span id="server-latency-average">—</span>
+    </footer>
+    <dialog id="transfers-dialog" aria-labelledby="transfers-title">
+        <div class="dialog-header"><h2 id="transfers-title" data-i18n="Transfers">Transfers</h2><button class="tool-btn" onclick="document.getElementById('transfers-dialog').close()" data-i18n="CLOSE">CLOSE</button></div>
+        <p class="dialog-intro" data-i18n="Uploads from this page. Keep this page open until the server confirms completion.">Uploads from this page. Keep this page open until the server confirms completion.</p>
+        <p id="transfers-summary" role="status" aria-live="polite"></p>
+        <div id="transfers-list" role="list"></div>
+        <button class="tool-btn" id="clear-transfers" onclick="clearTransfers()" data-i18n="Clear finished">Clear finished</button>
+    </dialog>
+    <dialog id="preview-dialog" aria-labelledby="preview-name">
+        <div class="preview-toolbar"><strong id="preview-name"></strong><a id="preview-download" class="tool-btn" download data-i18n="DOWNLOAD">DOWNLOAD</a><button class="tool-btn" onclick="document.getElementById('preview-dialog').close()">CLOSE</button></div>
+        <div id="preview-content"></div>
+    </dialog>
+    <dialog id="recovery-dialog" aria-labelledby="recovery-title">
+        <div class="dialog-header"><h2 id="recovery-title"></h2><button class="tool-btn" onclick="document.getElementById('recovery-dialog').close()" data-i18n="CLOSE">CLOSE</button></div>
+        <p class="dialog-intro" id="recovery-intro"></p>
+        <div id="recovery-status" class="dialog-error" role="alert"></div>
+        <div id="recovery-list"></div>
+    </dialog>
+
+    <div id="editor-overlay">
+        <div id="editor-toolbar">
+            <span id="editor-filename" style="font-weight: bold; font-size: 14px;">filename.py</span>
+            <div class="spacer"></div>
+            <button class="tool-btn" data-mutation onclick="saveFile()">SAVE</button>
+            <button class="tool-btn danger" onclick="closeEditor()">CLOSE</button>
+        </div>
+        <div id="editor-container"></div>
+    </div>
+
+    <script>
+        let selectedFiles = new Set();
+        const portuguese = {
+            'TRANSFERS': 'TRANSFERÊNCIAS', 'Transfers': 'Transferências',
+            'Uploads from this page. Keep this page open until the server confirms completion.': 'Envios desta página. Mantenha a página aberta até o servidor confirmar a conclusão.',
+            'Clear finished': 'Limpar finalizadas', 'Cancel transfer': 'Cancelar transferência',
+            'Retry upload': 'Reenviar arquivo', 'Queued': 'Na fila', 'Uploading': 'Enviando',
+            'Finalizing': 'Finalizando', 'Cancelled': 'Cancelada', 'Failed': 'Falhou', 'Completed': 'Concluída',
+            'Transfer cancelled': 'Transferência cancelada', 'No transfers yet.': 'Nenhuma transferência ainda.',
+            'Completed: {done}/{total}. Failed: {failed}. Cancelled: {cancelled}.': 'Concluído: {done}/{total}. Falhas: {failed}. Canceladas: {cancelled}.',
+            'Active: {active} | Queued: {queued} | Finished: {finished}': 'Ativas: {active} | Na fila: {queued} | Finalizadas: {finished}',
+            'Time remaining: {seconds} s': 'Tempo restante: {seconds} s',
+            'Check the destination: the server may already have completed this upload.': 'Confira o destino: o servidor pode já ter concluído este envio.',
+            'Server': 'Servidor', 'Average': 'Média', 'Server connection': 'Conexão com o servidor',
+            'Measuring...': 'Medindo...', 'Server unavailable': 'Servidor indisponível',
+            'Authentication required': 'Autenticação necessária', 'Too many requests': 'Muitas requisições',
+            'HTTP round trip. Average of the last {count} measurements; checked every 5 seconds.': 'Tempo de ida e volta HTTP. Média das últimas {count} medições; verificado a cada 5 segundos.',
+            'INSTALL APP': 'INSTALAR APP',
+            'Offline. Connect to the server to access files.': 'Sem conexão. Conecte-se ao servidor para acessar os arquivos.',
+            'Language:': 'Idioma:', 'NEW FOLDER': 'NOVA PASTA', 'NEW FILE': 'NOVO ARQUIVO',
+            'UPLOAD': 'ENVIAR', 'RENAME': 'RENOMEAR', 'CUT': 'RECORTAR', 'COPY': 'COPIAR',
+            'PASTE': 'COLAR', 'DELETE': 'EXCLUIR', 'EDIT': 'EDITAR',
+            'DOWNLOAD AS ZIP': 'BAIXAR COMO ZIP', 'Location:': 'Local:',
+            'Search files...': 'Buscar arquivos...', 'SAVE': 'SALVAR', 'CLOSE': 'FECHAR',
+            'Parent Directory': 'Pasta anterior', 'Terminal / Intent Sender': 'Terminal / Envio de comandos',
+            'CLEAR': 'LIMPAR', 'Enter system command...': 'Digite um comando do sistema...',
+            'Failed to read file': 'Não foi possível ler o arquivo',
+            'File saved successfully': 'Arquivo salvo com sucesso', 'Error saving file': 'Erro ao salvar arquivo',
+            'Error: ': 'Erro: ', 'Delete {count} items?': 'Excluir {count} itens?',
+            'Folder name:': 'Nome da pasta:', 'File name:': 'Nome do arquivo:',
+            'New name:': 'Novo nome:', 'Error creating folder': 'Erro ao criar pasta',
+            'Items copied to clipboard': 'Itens copiados para a área de transferência',
+            'Items cut to clipboard': 'Itens recortados para a área de transferência',
+            'ICONS': 'ÍCONES', 'LIST': 'LISTA', 'FOLDER PANEL': 'PAINEL DE PASTAS',
+            'View': 'Visualização', 'Folders': 'Pastas', 'Folder navigation': 'Navegação por pastas',
+            'Root folder': 'Pasta raiz',
+            'Shared folders': 'Pastas compartilhadas',
+            'Main folder': 'Pasta principal', 'Loading...': 'Carregando...', 'No subfolders': 'Sem subpastas',
+            'Unable to load folders': 'Não foi possível carregar as pastas', 'Retry': 'Tentar novamente',
+            'PREVIEW': 'PRÉ-VISUALIZAR', 'DOWNLOAD': 'BAIXAR', 'Sort by:': 'Ordenar por:',
+            'Name': 'Nome', 'Size': 'Tamanho', 'Modified': 'Modificado', 'Descending': 'Decrescente',
+            'Ascending': 'Crescente', 'Operations': 'Operações', 'Progress': 'Progresso', 'REFRESH': 'ATUALIZAR',
+            'Uploading': 'Enviando', 'Deleting': 'Excluindo', 'Moving': 'Movendo', 'Copying': 'Copiando',
+            'Creating': 'Criando', 'Renaming': 'Renomeando', 'Saving': 'Salvando',
+            'Completed: {done}/{total}. Failed: {failed}.': 'Concluído: {done}/{total}. Falhas: {failed}.',
+            'Working: {done}/{total} — {name}': 'Em andamento: {done}/{total} — {name}',
+            'Request failed (HTTP {status})': 'Operação falhou (HTTP {status})',
+            'Destination already exists': 'Já existe um item com esse nome no destino',
+            'Access denied': 'Acesso negado', 'Network error': 'Erro de conexão',
+            'Invalid name': 'Nome inválido', 'Move {count} items to {folder}?': 'Mover {count} itens para {folder}?',
+            'Cannot move a folder into itself': 'Não é possível mover uma pasta para dentro dela mesma',
+            'Preview unavailable': 'Pré-visualização indisponível', 'Unable to refresh files': 'Não foi possível atualizar os arquivos',
+            'File explorer': 'Explorador de arquivos', 'Switch theme': 'Alterar tema',
+            'Dark theme': 'Tema escuro', 'Light theme': 'Tema claro', 'Search files': 'Buscar arquivos',
+            'Include subfolders': 'Incluir subpastas', 'Quick access': 'Acesso rápido',
+            'Favorites': 'Favoritos', 'FAVORITE': 'FAVORITAR', 'REMOVE FAVORITE': 'REMOVER FAVORITO',
+            'Remove favorite': 'Remover favorito', 'No favorites yet': 'Nenhum favorito ainda',
+            'This folder is empty': 'Esta pasta está vazia', 'No files match': 'Nenhum arquivo encontrado',
+            '{count} items · {selected} selected': '{count} itens · {selected} selecionados',
+            'TRASH': 'LIXEIRA', 'Trash': 'Lixeira', 'RECENT MOVES': 'MOVIMENTOS RECENTES',
+            'Recent moves': 'Movimentos recentes', 'RESTORE': 'RESTAURAR', 'UNDO': 'DESFAZER',
+            'Deleted files stay here until you restore them.': 'Os arquivos excluídos ficam aqui até serem restaurados.',
+            'Undo recent moves without replacing existing files.': 'Desfaça movimentos recentes sem substituir arquivos existentes.',
+            'Trash is empty': 'A lixeira está vazia', 'No recent moves': 'Nenhum movimento recente',
+            'Restore {name}?': 'Restaurar {name}?', 'Undo move of {name}?': 'Desfazer o movimento de {name}?',
+            'Searching shared folder...': 'Buscando na pasta compartilhada...',
+            '{count} results': '{count} resultados', 'Partial results. Refine your search.': 'Resultados parciais. Refine sua busca.',
+            'Search failed. Try again.': 'A busca falhou. Tente novamente.', 'OPEN': 'ABRIR',
+            'Open containing folder': 'Abrir pasta de origem', 'Moved item has changed': 'O item foi alterado após o movimento',
+            'Move {count} items to trash?': 'Mover {count} itens para a lixeira?'
+        };
+        let interfaceLanguage = 'en';
+
+        function t(source, values = {}) {
+            let result = interfaceLanguage === 'pt' ? (portuguese[source] || source) : source;
+            Object.entries(values).forEach(([key, value]) => {
+                result = result.replaceAll('{' + key + '}', String(value));
+            });
+            return result;
+        }
+
+        // Mark only interface labels; preserve filenames, paths, icons and editor contents.
+        document.querySelectorAll('.tool-btn, .breadcrumb b, .terminal-header span, .terminal-header button').forEach(element => {
+            const textNode = Array.from(element.childNodes).find(node => node.nodeType === Node.TEXT_NODE && node.textContent.trim());
+            if (!textNode) return;
+            const span = document.createElement('span');
+            span.dataset.i18n = textNode.textContent.trim();
+            span.textContent = textNode.textContent.trim();
+            textNode.replaceWith(span);
+        });
+        document.querySelectorAll('.search-input, #cmd-input').forEach(element => {
+            element.dataset.i18nPlaceholder = element.placeholder;
+        });
+
+        function setLanguage(code) {
+            interfaceLanguage = code === 'pt' ? 'pt' : 'en';
+            document.documentElement.lang = interfaceLanguage === 'pt' ? 'pt-BR' : 'en';
+            document.getElementById('language-select').value = interfaceLanguage;
+            document.querySelectorAll('[data-i18n]').forEach(element => {
+                element.textContent = t(element.dataset.i18n);
+            });
+            document.querySelectorAll('[data-i18n-placeholder]').forEach(element => {
+                element.placeholder = t(element.dataset.i18nPlaceholder);
+            });
+            document.querySelectorAll('[data-i18n-aria]').forEach(element => {
+                element.setAttribute('aria-label', t(element.dataset.i18nAria));
+            });
+            try { localStorage.setItem('serverpy_language', interfaceLanguage); } catch {}
+            window.dispatchEvent(new Event('serverpy:languagechange'));
+            formatFileDates();
+            refreshThemeLabel();
+            if (window.explorerReady) {
+                renderBreadcrumbs();
+                renderFavorites();
+                updateFolderState();
+                if (document.getElementById('recovery-dialog').open) renderRecovery();
+                renderTransfers();
+            }
+        }
+        let savedLanguage = 'en';
+        try { savedLanguage = localStorage.getItem('serverpy_language') || 'en'; } catch {}
+        setLanguage(savedLanguage);
+
+        function savePreference(key, value) {
+            try { localStorage.setItem(key, value); } catch {}
+        }
+
+        function readPreference(key, fallback) {
+            try { return localStorage.getItem(key) || fallback; } catch { return fallback; }
+        }
+
+        function setView(mode) {
+            const isList = mode === 'list';
+            document.getElementById('fileGrid').classList.toggle('list-view', isList);
+            ['grid', 'list'].forEach(view => {
+                const button = document.getElementById('btn-view-' + view);
+                const active = view === (isList ? 'list' : 'grid');
+                button.classList.toggle('active', active);
+                button.setAttribute('aria-pressed', String(active));
+            });
+            savePreference('serverpy_view', isList ? 'list' : 'grid');
+        }
+
+        let expandedFolders;
+        try {
+            const stored = JSON.parse(readPreference('serverpy_expanded_folders', '[]'));
+            expandedFolders = new Set(Array.isArray(stored) ? stored.filter(path => typeof path === 'string') : []);
+        } catch { expandedFolders = new Set(); }
+        // Reveal the current folder's ancestors when opening the panel.
+        const URL_PREFIX = document.body.dataset.urlPrefix || '';
+        const currentFolder = getCurrentDir();
+        const parts = currentFolder.split('/').filter(Boolean);
+        expandedFolders.add('/');
+        parts.forEach((_, index) => expandedFolders.add('/' + parts.slice(0, index + 1).join('/') + '/'));
+        let treeInitialized = false;
+
+        function toggleSidebar(visible = document.getElementById('folder-sidebar').hidden) {
+            document.getElementById('folder-sidebar').hidden = !visible;
+            const button = document.getElementById('btn-sidebar');
+            button.classList.toggle('active', visible);
+            button.setAttribute('aria-expanded', String(visible));
+            savePreference('serverpy_sidebar', visible ? 'true' : 'false');
+            if (visible && !treeInitialized) {
+                treeInitialized = true;
+                document.getElementById('folder-tree').appendChild(createFolderNode('Root folder', '/'));
+            }
+        }
+
+        function treeMessage(source) {
+            const message = document.createElement('div');
+            message.className = 'tree-message';
+            message.dataset.i18n = source;
+            message.textContent = t(source);
+            return message;
+        }
+
+        function createFolderNode(name, path) {
+            const node = document.createElement('details');
+            node.className = 'folder-node';
+            const summary = document.createElement('summary');
+            const link = document.createElement('a');
+            link.href = fileUrl(path);
+            link.textContent = path === '/' ? t('Root folder') : name;
+            if (path === '/') link.dataset.i18n = 'Root folder';
+            if (path === currentFolder) link.setAttribute('aria-current', 'page');
+            link.addEventListener('click', event => event.stopPropagation());
+            link.dataset.dropFolder = path;
+            summary.appendChild(link);
+            const children = document.createElement('div');
+            children.className = 'folder-children';
+            node.append(summary, children);
+            let loaded = false;
+            let loading = false;
+
+            async function loadChildren() {
+                if (loaded || loading) return;
+                loading = true;
+                children.setAttribute('aria-busy', 'true');
+                children.replaceChildren(treeMessage('Loading...'));
+                try {
+                    const response = await fetch(URL_PREFIX + '/api/folders?path=' + encodeURIComponent(path));
+                    if (!response.ok) throw new Error('Unable to load folders');
+                    const data = await response.json();
+                    children.replaceChildren();
+                    data.folders.forEach(folder => children.appendChild(createFolderNode(folder.name, folder.path)));
+                    if (!data.folders.length) children.appendChild(treeMessage('No subfolders'));
+                    loaded = true;
+                } catch {
+                    const retry = document.createElement('button');
+                    retry.className = 'tree-retry';
+                    retry.dataset.i18n = 'Retry';
+                    retry.textContent = t('Retry');
+                    retry.addEventListener('click', loadChildren);
+                    children.replaceChildren(treeMessage('Unable to load folders'), retry);
+                } finally {
+                    loading = false;
+                    children.setAttribute('aria-busy', 'false');
+                }
+            }
+
+            node.addEventListener('toggle', () => {
+                if (node.open) {
+                    expandedFolders.add(path);
+                    loadChildren();
+                } else expandedFolders.delete(path);
+                savePreference('serverpy_expanded_folders', JSON.stringify([...expandedFolders]));
+            });
+            node.open = expandedFolders.has(path);
+            if (node.open) loadChildren();
+            return node;
+        }
+        
+        function getClipboard() {
+            try {
+                return JSON.parse(localStorage.getItem('serverpy_clipboard_' + document.body.dataset.rootId) || '{"items":[], "mode": null}');
+            } catch {
+                return { items: [], mode: null };
+            }
+        }
+        
+        function getCurrentDir() {
+            const path = decodeURIComponent(window.location.pathname.slice(URL_PREFIX.length));
+            return path + (path.endsWith('/') ? '' : '/');
+        }
+        
+        function setClipboard(items, mode) {
+            localStorage.setItem('serverpy_clipboard_' + document.body.dataset.rootId, JSON.stringify({items, mode}));
+            updateToolbar();
+        }
+
+        function toggleSelect(element, name, event) {
+            event.stopPropagation();
+            if (event.ctrlKey) {
+                if (selectedFiles.has(name)) {
+                    selectedFiles.delete(name);
+                    element.classList.remove('selected');
+                } else {
+                    selectedFiles.add(name);
+                    element.classList.add('selected');
+                }
+            } else {
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+                selectedFiles.clear();
+                selectedFiles.add(name);
+                element.classList.add('selected');
+            }
+            updateToolbar();
+        }
+
+        function clearSelection(event) {
+            if (event.target.classList.contains('content') || event.target.id === 'fileGrid') {
+                document.querySelectorAll('.card').forEach(c => c.classList.remove('selected'));
+                selectedFiles.clear();
+                updateToolbar();
+            }
+        }
+
+        function updateToolbar() {
+            const hasSelection = selectedFiles.size > 0;
+            const singleSelection = selectedFiles.size === 1;
+            const clipboard = getClipboard();
+            
+            const blocked = operationBusy || document.body.dataset.allowMod !== 'true';
+            const card = [...document.querySelectorAll('.card[data-name]')].find(card => selectedFiles.has(card.dataset.name));
+            document.getElementById('btn-delete').disabled = blocked || !can('delete') || !hasSelection;
+            document.getElementById('btn-rename').disabled = blocked || !can('edit', 'delete') || !singleSelection;
+            document.getElementById('btn-cut').disabled = blocked || !can('edit', 'delete') || !hasSelection;
+            document.getElementById('btn-copy').disabled = blocked || !can('download', 'upload') || !hasSelection;
+            document.getElementById('btn-paste').disabled = blocked || !can('upload') || (clipboard.mode === 'cut' && !can('edit', 'delete')) || clipboard.items.length === 0;
+            document.getElementById('btn-edit').disabled = blocked || !can('edit', 'download') || !singleSelection || card?.dataset.directory === 'true';
+            document.getElementById('btn-preview').disabled = !can('download') || !singleSelection || !previewType(card);
+            document.querySelectorAll('[data-mutation]').forEach(button => button.disabled = blocked);
+            document.querySelectorAll('[onclick]').forEach(button => {
+                const action = button.getAttribute('onclick');
+                if (/upload-input|newFolder|newFile/.test(action)) button.disabled = blocked || !can('upload');
+                if (/downloadZip/.test(action)) button.disabled = !can('download');
+                if (/openRecovery\('trash'\)/.test(action)) button.disabled = !can('view', 'delete');
+                if (/openRecovery\('moves'\)/.test(action)) button.disabled = !can('view', 'edit', 'delete');
+            });
+            document.querySelectorAll('#btn-rename, #btn-cut, #btn-copy, #btn-delete, #btn-edit, #btn-preview').forEach(button => button.hidden = !hasSelection);
+            document.getElementById('btn-paste').hidden = !hasSelection && clipboard.items.length === 0;
+            updateFolderState();
+        }
+
+        function filterFiles(term) {
+            const lowTerm = term.toLowerCase();
+            document.querySelectorAll('.card').forEach(card => {
+                const name = card.querySelector('.name').textContent.toLowerCase();
+                if (card.matches('a[href=".."]')) return; // Skip back button in either language
+                card.style.display = name.includes(lowTerm) ? '' : 'none';
+            });
+            updateFolderState();
+        }
+
+        let aceEditor = null;
+        let currentEditingPath = null;
+
+        function initEditor() {
+            const container = document.getElementById("editor-container");
+            if (typeof ace !== 'undefined') {
+                if (!aceEditor) {
+                    aceEditor = ace.edit("editor-container");
+                    aceEditor.setTheme(document.documentElement.dataset.theme === 'dark' ? 'ace/theme/dracula' : 'ace/theme/chrome');
+                    aceEditor.setOptions({
+                        fontSize: "14px",
+                        showPrintMargin: false,
+                        enableBasicAutocompletion: true,
+                        enableLiveAutocompletion: true
+                    });
+                }
+            } else {
+                if (!document.getElementById('fallback-textarea')) {
+                    container.innerHTML = '<textarea id="fallback-textarea" style="width:100%; height:100%; background:#1e1e1e; color:#fff; font-family:Consolas,monospace; font-size:14px; border:none; padding:15px; box-sizing:border-box; outline:none; resize:none;"></textarea>';
+                }
+            }
+        }
+
+        async function openEditor() {
+            const fileName = Array.from(selectedFiles)[0];
+            currentEditingPath = getCurrentDir() + fileName;
+
+            try {
+                const response = await fetch(URL_PREFIX + '/api/read?path=' + encodeURIComponent(currentEditingPath));
+                if (!response.ok) throw new Error(t('Failed to read file'));
+                const content = await response.text();
+
+                document.getElementById('editor-filename').textContent = fileName;
+                document.getElementById('editor-overlay').style.display = 'flex';
+                
+                initEditor();
+                if (aceEditor) {
+                    aceEditor.setValue(content, -1);
+                    const ext = fileName.split('.').pop().toLowerCase();
+                    const modeMap = {
+                        'py': 'python', 'js': 'javascript', 'html': 'html', 
+                        'css': 'css', 'json': 'json', 'sh': 'sh', 'c': 'c_cpp', 'cpp': 'c_cpp'
+                    };
+                    aceEditor.session.setMode(`ace/mode/${modeMap[ext] || 'text'}`);
+                } else {
+                    const fallback = document.getElementById('fallback-textarea');
+                    if (fallback) fallback.value = content;
+                }
+                
+            } catch (e) {
+                alert(e.message);
+            }
+        }
+
+        function closeEditor() {
+            document.getElementById('editor-overlay').style.display = 'none';
+        }
+
+        async function saveFile() {
+            const fallback = document.getElementById('fallback-textarea');
+            const content = aceEditor ? aceEditor.getValue() : (fallback ? fallback.value : '');
+            await runBatch([currentEditingPath], path => apiRequest('/api/save', {path, content}));
+        }
+
+        function can(...permissions) {
+            const granted = JSON.parse(document.body.dataset.permissions || '[]');
+            return permissions.every(permission => granted.includes(permission));
+        }
+
+        async function uploadFiles(files) {
+            await uploadTo(files, getCurrentDir());
+        }
+
+        async function deleteSelected() {
+            if (!confirm(t('Move {count} items to trash?', {count: selectedFiles.size}))) return;
+            await runBatch([...selectedFiles], name => checkedFetch(fileUrl(getCurrentDir() + name), {method: 'DELETE'}));
+        }
+
+        async function newFolder() {
+            const name = prompt(t('Folder name:'));
+            if (name) {
+                if (!validName(name)) return;
+                await runBatch([name], name => apiRequest('/api/mkdir', {path: getCurrentDir() + name}));
+            }
+        }
+
+        async function newFile() {
+            const name = prompt(t('File name:'));
+            if (name) {
+                if (!validName(name)) return;
+                await runBatch([name], name => checkedFetch(fileUrl(getCurrentDir() + name), {method: 'PUT', body: '', headers: {'If-None-Match': '*'}}));
+            }
+        }
+
+        async function renameSelected() {
+            const oldName = Array.from(selectedFiles)[0];
+            const newName = prompt(t('New name:'), oldName.replace(/\/$/, ''));
+            if (newName && newName !== oldName) {
+                if (!validName(newName)) return;
+                await runBatch([oldName], name => apiRequest('/api/rename', {old: getCurrentDir() + name, new: getCurrentDir() + newName}));
+            }
+        }
+
+
+        function copyCutSelected(mode) {
+            const items = Array.from(selectedFiles).map(name => {
+                const base = getCurrentDir();
+                return base + name;
+            });
+            setClipboard(items, mode);
+            alert(t(mode === 'cut' ? 'Items cut to clipboard' : 'Items copied to clipboard'));
+        }
+
+        async function pasteClipboard() {
+            const destBase = getCurrentDir();
+            const clipboard = getClipboard();
+            const endpoint = clipboard.mode === 'cut' ? '/api/move' : '/api/copy';
+            
+            await runBatch([...clipboard.items], async src => {
+                const name = src.replace(/\/+$/, '').split('/').filter(x => x).pop();
+                if (!name) throw new Error(t('Invalid name'));
+                await apiRequest(endpoint, {src, dst: destBase + name});
+                if (clipboard.mode === 'cut') {
+                    const remaining = getClipboard().items.filter(item => item !== src);
+                    setClipboard(remaining, remaining.length ? 'cut' : null);
+                }
+            });
+        }
+        
+        function downloadZip() {
+            window.location.href = URL_PREFIX + '/api/zip?path=' + encodeURIComponent(getCurrentDir());
+        }
+
+        async function sendIntent() {
+            const input = document.getElementById('cmd-input');
+            const output = document.getElementById('terminal-output');
+            const command = input.value;
+            if (!command) return;
+
+            output.innerHTML += `\n<span style="color:#3498db">$ ${command}</span>`;
+            input.value = '';
+
+            try {
+                const response = await fetch(URL_PREFIX + '/api/intent', {
+                    method: 'POST',
+                    body: JSON.stringify({command: command}),
+                    headers: {'Content-Type': 'application/json'}
+                });
+                const data = await response.json();
+                if (data.stdout) output.innerHTML += `\n${data.stdout}`;
+                if (data.stderr) output.innerHTML += `\n<span style="color:#e74c3c">${data.stderr}</span>`;
+                output.scrollTop = output.scrollHeight;
+            } catch (e) {
+                output.innerHTML += `\n<span style="color:#e74c3c">${t('Error: ')}${e}</span>`;
+            }
+        }
+
+        function formatFileDates() {
+            document.querySelectorAll('time[data-timestamp]').forEach(element => {
+                const timestamp = Number(element.dataset.timestamp);
+                element.textContent = timestamp ? new Date(timestamp * 1000).toLocaleString(interfaceLanguage === 'pt' ? 'pt-BR' : 'en-US', {dateStyle: 'short', timeStyle: 'short'}) : '—';
+                if (timestamp) element.dateTime = new Date(timestamp * 1000).toISOString();
+            });
+        }
+
+        let sortDirection = readPreference('serverpy_sort_direction', 'asc') === 'desc' ? 'desc' : 'asc';
+        function sortFiles(key = document.getElementById('sort-select').value) {
+            if (!['name', 'size', 'modified'].includes(key)) key = 'name';
+            document.getElementById('sort-select').value = key;
+            const grid = document.getElementById('fileGrid');
+            const cards = [...grid.querySelectorAll('.card[data-name]')];
+            cards.sort((a, b) => {
+                const directories = Number(b.dataset.directory === 'true') - Number(a.dataset.directory === 'true');
+                if (directories) return directories;
+                const byName = a.dataset.name.localeCompare(b.dataset.name, interfaceLanguage, {numeric: true, sensitivity: 'base'});
+                const order = key === 'name' ? byName : Number(a.dataset[key]) - Number(b.dataset[key]) || byName;
+                return sortDirection === 'desc' ? -order : order;
+            });
+            cards.forEach(card => grid.appendChild(card));
+            savePreference('serverpy_sort', key);
+            const button = document.getElementById('btn-sort-direction');
+            button.textContent = sortDirection === 'asc' ? '↑' : '↓';
+            button.dataset.i18nAria = sortDirection === 'asc' ? 'Descending' : 'Ascending';
+            button.setAttribute('aria-label', t(button.dataset.i18nAria));
+        }
+
+        function toggleSortDirection() {
+            sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            savePreference('serverpy_sort_direction', sortDirection);
+            sortFiles();
+        }
+
+        function fileUrl(path) {
+            return URL_PREFIX + path.split('/').map(segment => encodeURIComponent(segment)).join('/');
+        }
+
+        function validName(name) {
+            if (!name.trim() || name === '.' || name === '..' || /[\\/\x00]/.test(name)) {
+                alert(t('Invalid name'));
+                return false;
+            }
+            return true;
+        }
+
+        function requestError(status) {
+            if (status === 409 || status === 412) return new Error(t('Destination already exists'));
+            if (status === 401 || status === 403 || status === 405) return new Error(t('Access denied'));
+            return new Error(t('Request failed (HTTP {status})', {status}));
+        }
+
+        async function checkedFetch(url, options) {
+            let response;
+            try { response = await fetch(url.startsWith('/api/') ? URL_PREFIX + url : url, options); } catch { throw new Error(t('Network error')); }
+            if (!response.ok) {
+                if (response.status === 409 && (await response.clone().text()).includes('Moved item has changed')) throw new Error(t('Moved item has changed'));
+                throw requestError(response.status);
+            }
+            return response;
+        }
+
+        function apiRequest(url, payload) {
+            return checkedFetch(url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload)});
+        }
+
+        let operationBusy = false;
+        async function runBatch(items, action) {
+            if (operationBusy || !items.length || document.body.dataset.allowMod !== 'true') return;
+            operationBusy = true;
+            updateToolbar();
+            const panel = document.getElementById('operation-panel');
+            const status = document.getElementById('operation-status');
+            const progress = document.getElementById('operation-progress');
+            const errors = document.getElementById('operation-errors');
+            panel.hidden = false;
+            errors.textContent = '';
+            progress.value = 0;
+            let done = 0;
+            let failed = 0;
+            let cancelled = 0;
+            try {
+                for (let index = 0; index < items.length; index++) {
+                    const item = items[index];
+                    const name = item.name || item;
+                    status.textContent = t('Working: {done}/{total} — {name}', {done: index + 1, total: items.length, name});
+                    try {
+                        await action(item, fraction => progress.value = (index + fraction) / items.length * 100);
+                        done++;
+                    } catch (error) {
+                        if (error.cancelled) cancelled++; else failed++;
+                        errors.textContent += (errors.textContent ? '\n' : '') + name + ': ' + error.message;
+                    }
+                    progress.value = (index + 1) / items.length * 100;
+                }
+                status.textContent = t(cancelled ? 'Completed: {done}/{total}. Failed: {failed}. Cancelled: {cancelled}.' : 'Completed: {done}/{total}. Failed: {failed}.', {done, total: items.length, failed, cancelled});
+                if (done) await refreshListing();
+            } finally {
+                operationBusy = false;
+                updateToolbar();
+                renderTransfers();
+            }
+            return {done, failed};
+        }
+
+        async function refreshListing() {
+            try {
+                const response = await checkedFetch(window.location.pathname, {cache: 'no-store'});
+                const page = new DOMParser().parseFromString(await response.text(), 'text/html');
+                const newGrid = page.getElementById('fileGrid');
+                if (!newGrid) throw new Error(t('Unable to refresh files'));
+                const grid = document.getElementById('fileGrid');
+                grid.replaceChildren(...newGrid.childNodes);
+                const available = new Set([...grid.querySelectorAll('[data-name]')].map(card => card.dataset.name));
+                selectedFiles = new Set([...selectedFiles].filter(name => available.has(name)));
+                grid.querySelectorAll('[data-name]').forEach(card => card.classList.toggle('selected', selectedFiles.has(card.dataset.name)));
+                grid.querySelectorAll('[data-i18n]').forEach(element => element.textContent = t(element.dataset.i18n));
+                formatFileDates();
+                sortFiles();
+                filterFiles(document.querySelector('.search-input').value);
+                decorateFiles();
+                updateFolderState();
+                if (document.getElementById('search-recursive').checked && document.querySelector('.search-input').value.trim()) handleSearch(document.querySelector('.search-input').value);
+                treeInitialized = false;
+                document.getElementById('folder-tree').replaceChildren();
+                if (!document.getElementById('folder-sidebar').hidden) toggleSidebar(true);
+                updateToolbar();
+            } catch (error) {
+                document.getElementById('operation-panel').hidden = false;
+                document.getElementById('operation-errors').textContent += '\n' + t('Unable to refresh files') + ': ' + error.message;
+            }
+        }
+
+        const transfers = [];
+        let transferSerial = 0;
+        const transferActive = item => ['Queued', 'Uploading', 'Finalizing'].includes(item.state);
+        function transferBytes(bytes) {
+            const units = ['B', 'KiB', 'MiB', 'GiB', 'TiB'];
+            let index = 0;
+            while (bytes >= 1024 && index < units.length - 1) { bytes /= 1024; index++; }
+            return bytes.toFixed(index ? 1 : 0) + ' ' + units[index];
+        }
+        function openTransfers() {
+            renderTransfers();
+            const dialog = document.getElementById('transfers-dialog');
+            if (!dialog.open) dialog.showModal();
+        }
+        function clearTransfers() {
+            for (let index = transfers.length - 1; index >= 0; index--) {
+                if (!transferActive(transfers[index])) transfers.splice(index, 1);
+            }
+            renderTransfers();
+        }
+        function cancelUpload(item) {
+            if (!transferActive(item)) return;
+            item.warning = item.done === item.size && item.state !== 'Queued';
+            item.state = 'Cancelled'; item.rate = 0;
+            if (item.xhr) item.xhr.abort();
+            renderTransfers();
+        }
+        function renderTransfers() {
+            const finished = transfers.filter(item => !transferActive(item));
+            for (const item of finished.slice(0, Math.max(0, finished.length - 100))) transfers.splice(transfers.indexOf(item), 1);
+            const list = document.getElementById('transfers-list');
+            for (const row of [...list.children]) {
+                if (!transfers.some(item => String(item.id) === row.dataset.id)) row.remove();
+            }
+            for (const item of transfers) {
+                let row = [...list.children].find(element => element.dataset.id === String(item.id));
+                if (!row) {
+                    row = document.createElement('article'); row.className = 'transfer-row';
+                    row.dataset.id = item.id; row.setAttribute('role', 'listitem');
+                    const name = document.createElement('strong');
+                    const progress = document.createElement('progress'); progress.max = 100;
+                    const detail = document.createElement('small');
+                    const error = document.createElement('p'); error.className = 'dialog-error';
+                    const actions = document.createElement('div'); actions.className = 'transfer-actions';
+                    for (const [kind, callback, label, icon] of [
+                        ['cancel', () => cancelUpload(item), 'Cancel transfer', 'cut'],
+                        ['retry', () => retryUpload(item), 'Retry upload', 'upload']]) {
+                        const button = document.createElement('button'); button.className = 'tool-btn'; button.dataset.kind = kind;
+                        button.innerHTML = svgIcon(icon) + '<span></span>';
+                        button.dataset.label = label; button.addEventListener('click', callback); actions.append(button);
+                    }
+                    row.append(name, progress, detail, error, actions); list.append(row);
+                }
+                row.querySelector('strong').textContent = item.name;
+                const progress = row.querySelector('progress');
+                progress.value = item.size ? item.done / item.size * 100 : item.state === 'Completed' ? 100 : 0;
+                progress.setAttribute('aria-label', t('Progress') + ': ' + item.name);
+                let detail = t(item.state) + ' · ' + transferBytes(item.done) + ' / ' + transferBytes(item.size);
+                if (item.rate > 0 && item.state === 'Uploading') detail += ' · ' + transferBytes(item.rate) + '/s · ' + t('Time remaining: {seconds} s', {seconds: Math.ceil((item.size - item.done) / item.rate)});
+                row.querySelector('small').textContent = detail;
+                row.querySelector('p').textContent = item.warning ? t('Check the destination: the server may already have completed this upload.') : item.error || '';
+                for (const button of row.querySelectorAll('button')) button.lastElementChild.textContent = t(button.dataset.label);
+                row.querySelector('[data-kind="cancel"]').disabled = !transferActive(item);
+                row.querySelector('.transfer-actions').hidden = !transferActive(item) && !['Cancelled', 'Failed'].includes(item.state);
+                const retry = row.querySelector('[data-kind="retry"]');
+                retry.hidden = !['Cancelled', 'Failed'].includes(item.state);
+                retry.disabled = operationBusy || !item.file || document.body.dataset.allowMod !== 'true';
+            }
+            const active = transfers.filter(item => ['Uploading', 'Finalizing'].includes(item.state)).length;
+            const queued = transfers.filter(item => item.state === 'Queued').length;
+            document.getElementById('transfers-summary').textContent = transfers.length ? t('Active: {active} | Queued: {queued} | Finished: {finished}', {active, queued, finished: transfers.length - active - queued}) : t('No transfers yet.');
+        }
+        function retryUpload(item) {
+            if (operationBusy || !item.file || !['Failed', 'Cancelled'].includes(item.state)) return;
+            Object.assign(item, {state: 'Queued', done: 0, rate: 0, warning: false, error: ''});
+            return runUploadBatch([item]);
+        }
+        function runUploadBatch(items) {
+            return runBatch(items, (item, onProgress) => new Promise((resolve, reject) => {
+                if (item.state === 'Cancelled') { reject(Object.assign(new Error(t('Transfer cancelled')), {cancelled: true})); return; }
+                const xhr = new XMLHttpRequest();
+                item.xhr = xhr; item.state = 'Uploading'; item.started = performance.now();
+                xhr.open('PUT', fileUrl(item.folder + item.name));
+                xhr.setRequestHeader('If-None-Match', '*');
+                const finish = error => {
+                    item.xhr = null; item.rate = 0;
+                    if (error) {
+                        item.state = item.state === 'Cancelled' ? 'Cancelled' : 'Failed';
+                        error.cancelled = item.state === 'Cancelled';
+                        item.error = error.message; reject(error);
+                    } else {
+                        item.state = 'Completed'; item.done = item.size; item.file = null; resolve();
+                    }
+                    renderTransfers();
+                };
+                xhr.upload.onprogress = event => {
+                    if (!event.lengthComputable || item.state === 'Cancelled') return;
+                    item.done = Math.min(item.size, event.loaded);
+                    const seconds = (performance.now() - item.started) / 1000;
+                    item.rate = seconds > 0 ? item.done / seconds : 0;
+                    if (item.done === item.size) item.state = 'Finalizing';
+                    onProgress(item.size ? item.done / item.size : 0);
+                    renderTransfers();
+                };
+                xhr.onload = () => finish(xhr.status >= 200 && xhr.status < 300 ? null : requestError(xhr.status));
+                xhr.onerror = xhr.ontimeout = () => { item.warning = item.done === item.size; finish(new Error(t('Network error'))); };
+                xhr.onabort = () => { item.state = 'Cancelled'; finish(new Error(t('Transfer cancelled'))); };
+                // Large files may legitimately need more than five minutes.
+                xhr.send(item.file);
+                renderTransfers();
+            })).finally(() => { document.getElementById('upload-input').value = ''; });
+        }
+        function uploadTo(files, folder) {
+            if (operationBusy || !can('upload') || document.body.dataset.allowMod !== 'true' || !files.length) return Promise.resolve();
+            const items = Array.from(files, file => ({id: ++transferSerial, file, name: file.name, folder, size: file.size, done: 0, rate: 0, state: 'Queued', error: ''}));
+            const finished = transfers.filter(item => !transferActive(item));
+            for (const item of finished.slice(0, Math.max(0, finished.length - 99))) transfers.splice(transfers.indexOf(item), 1);
+            transfers.push(...items);
+            const result = runUploadBatch(items);
+            openTransfers();
+            return result;
+        }
+        window.addEventListener('beforeunload', event => {
+            if (transfers.some(transferActive)) { event.preventDefault(); event.returnValue = ''; }
+        });
+
+        function previewType(card) {
+            if (!card || card.dataset.directory === 'true') return null;
+            const ext = card.dataset.name.split('.').pop().toLowerCase();
+            if (['jpg', 'jpeg', 'png', 'gif', 'svg', 'webp', 'bmp', 'avif'].includes(ext)) return 'img';
+            if (['mp3', 'wav', 'flac', 'ogg', 'm4a', 'aac'].includes(ext)) return 'audio';
+            if (['mp4', 'webm', 'ogv', 'mov', 'mkv', 'avi'].includes(ext)) return 'video';
+            if (ext === 'pdf') return 'iframe';
+            return null;
+        }
+
+        function openItem(card) {
+            if (card.dataset.directory !== 'true' && !can('download')) return;
+            if (previewType(card)) openPreview(card);
+            else window.location.href = card.dataset.url;
+        }
+
+        function previewSelected() {
+            const card = [...document.querySelectorAll('.card[data-name]')].find(card => selectedFiles.has(card.dataset.name));
+            if (previewType(card)) openPreview(card);
+        }
+
+        function openPreview(card) {
+            if (!can('download')) return;
+            const type = previewType(card);
+            if (!type) return;
+            const dialog = document.getElementById('preview-dialog');
+            document.getElementById('preview-name').textContent = card.dataset.name;
+            const url = fileUrl(card.dataset.path || getCurrentDir() + card.dataset.name);
+            document.getElementById('preview-download').href = url;
+            const media = document.createElement(type);
+            media.src = url;
+            if (type === 'audio' || type === 'video') media.controls = true;
+            if (type === 'img') media.alt = card.dataset.name;
+            if (type === 'iframe') media.title = card.dataset.name;
+            media.addEventListener('error', () => document.getElementById('preview-content').replaceChildren(treeMessage('Preview unavailable')));
+            document.getElementById('preview-content').replaceChildren(media);
+            dialog.showModal();
+        }
+        document.getElementById('preview-dialog').addEventListener('close', () => {
+            document.getElementById('preview-content').querySelectorAll('video, audio').forEach(media => media.pause());
+            document.getElementById('preview-content').replaceChildren();
+        });
+
+        let draggedPaths = [];
+        document.addEventListener('dragstart', event => {
+            const card = event.target.closest('.card[data-name]');
+            if (!card || operationBusy || document.body.dataset.allowMod !== 'true') { event.preventDefault(); return; }
+            const names = selectedFiles.has(card.dataset.name) ? [...selectedFiles] : [card.dataset.name];
+            draggedPaths = names.map(name => getCurrentDir() + name);
+            event.dataTransfer.setData('application/x-serverpy-items', JSON.stringify(draggedPaths));
+            event.dataTransfer.effectAllowed = 'move';
+        });
+        function dropTarget(event) {
+            return event.target.closest('[data-drop-folder], .card[data-directory="true"], .content');
+        }
+        document.addEventListener('dragover', event => {
+            const target = dropTarget(event);
+            if (!target || operationBusy || document.body.dataset.allowMod !== 'true') return;
+            if (![...event.dataTransfer.types].some(type => type === 'Files' || type === 'application/x-serverpy-items')) return;
+            event.preventDefault();
+            target.classList.add('drop-target');
+            event.dataTransfer.dropEffect = event.dataTransfer.types.includes('Files') ? 'copy' : 'move';
+        });
+        document.addEventListener('dragleave', event => {
+            const target = dropTarget(event);
+            if (target && !target.contains(event.relatedTarget)) target.classList.remove('drop-target');
+        });
+        document.addEventListener('dragend', () => {
+            draggedPaths = [];
+            document.querySelectorAll('.drop-target').forEach(element => element.classList.remove('drop-target'));
+        });
+        document.addEventListener('drop', async event => {
+            const target = dropTarget(event);
+            const hasFiles = event.dataTransfer.types.includes('Files');
+            if (hasFiles) event.preventDefault();
+            document.querySelectorAll('.drop-target').forEach(element => element.classList.remove('drop-target'));
+            if (!target || operationBusy || document.body.dataset.allowMod !== 'true') return;
+            event.preventDefault();
+            const folder = target.dataset.dropFolder || (target.dataset.directory === 'true' ? getCurrentDir() + target.dataset.name : getCurrentDir());
+            if (hasFiles) { await uploadTo(event.dataTransfer.files, folder); return; }
+            // Only accept internal drags initiated by this page.
+            const paths = [...draggedPaths];
+            draggedPaths = [];
+            if (!paths.length || !confirm(t('Move {count} items to {folder}?', {count: paths.length, folder}))) return;
+            await runBatch(paths, src => {
+                if (src.endsWith('/') && folder.startsWith(src)) throw new Error(t('Cannot move a folder into itself'));
+                const name = src.replace(/\/$/, '').split('/').pop();
+                return apiRequest('/api/move', {src, dst: folder + name});
+            });
+        });
+        window.addEventListener('dragover', event => { if (event.dataTransfer.types.includes('Files')) event.preventDefault(); });
+
+        function svgIcon(name, className = '') {
+            const paths = {
+                folder: '<path d="M3 7a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2Z"/>',
+                file: '<path d="M6 3h8l4 4v14H6Z"/><path d="M14 3v5h4M9 12h6M9 16h6"/>',
+                upload: '<path d="M12 16V3m-5 5 5-5 5 5M4 15v6h16v-6"/>',
+                search: '<circle cx="10" cy="10" r="6"/><path d="m15 15 6 6"/>',
+                trash: '<path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7"/>',
+                sun: '<circle cx="12" cy="12" r="4"/><path d="M12 1v2m0 18v2M1 12h2m18 0h2M4 4l2 2m12 12 2 2M4 20l2-2M18 6l2-2"/>',
+                moon: '<path d="M20 15A9 9 0 0 1 9 4a9 9 0 1 0 11 11Z"/>',
+                edit: '<path d="m4 16 12-12 4 4L8 20H4Zm10-10 4 4"/>',
+                copy: '<rect x="8" y="8" width="12" height="12" rx="2"/><path d="M15 4H4v11"/>',
+                cut: '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8 8 12 12M8 16 20 4"/>',
+                paste: '<rect x="5" y="5" width="14" height="16" rx="2"/><rect x="9" y="2" width="6" height="5" rx="1"/>',
+                download: '<path d="M12 3v13m-5-5 5 5 5-5M4 17v4h16v-4"/>',
+                star: '<path d="m12 3 3 6 6 1-4.5 4.5 1 6.5-5.5-3-5.5 3 1-6.5L3 10l6-1Z"/>',
+                grid: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+                list: '<path d="M8 5h13M8 12h13M8 19h13M3 5h1M3 12h1M3 19h1"/>',
+                history: '<path d="M3 11a9 9 0 1 1 3 8M3 4v7h7M12 7v5l3 2"/>',
+                eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/>'
+            };
+            return '<svg aria-hidden="true" class="' + className + '" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">' + (paths[name] || paths.file) + '</svg>';
+        }
+
+        function refreshThemeLabel() {
+            const dark = document.documentElement.dataset.theme === 'dark';
+            document.getElementById('theme-label').textContent = t(dark ? 'Light theme' : 'Dark theme');
+            document.getElementById('theme-icon').innerHTML = svgIcon(dark ? 'sun' : 'moon');
+        }
+        function toggleTheme() {
+            document.documentElement.dataset.theme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+            savePreference('serverpy_theme', document.documentElement.dataset.theme);
+            refreshThemeLabel();
+            if (aceEditor) aceEditor.setTheme(document.documentElement.dataset.theme === 'dark' ? 'ace/theme/dracula' : 'ace/theme/chrome');
+        }
+
+        function decorateFiles() {
+            document.querySelectorAll('.card[data-name]').forEach(card => {
+                const icon = card.querySelector('.icon');
+                if (!icon.querySelector('img')) icon.innerHTML = svgIcon(card.dataset.directory === 'true' ? 'folder' : 'file', 'file-icon' + (card.dataset.directory === 'true' ? ' folder-icon' : ''));
+                card.title = card.dataset.name;
+            });
+        }
+
+        function updateFolderState() {
+            const cards = [...document.querySelectorAll('#fileGrid .card[data-name]')];
+            const visible = cards.filter(card => card.style.display !== 'none');
+            document.getElementById('file-count').textContent = t('{count} items · {selected} selected', {count: visible.length, selected: selectedFiles.size});
+            const empty = document.getElementById('folder-empty');
+            empty.hidden = visible.length > 0 || !document.getElementById('search-results').hidden;
+            empty.dataset.i18n = cards.length ? 'No files match' : 'This folder is empty';
+            empty.textContent = t(empty.dataset.i18n);
+        }
+
+        function renderBreadcrumbs() {
+            const container = document.getElementById('breadcrumbs');
+            container.replaceChildren();
+            const segments = getCurrentDir().split('/').filter(Boolean);
+            const root = document.createElement('a');
+            root.href = fileUrl('/'); root.dataset.i18n = 'Root folder'; root.textContent = t('Root folder');
+            container.appendChild(root);
+            segments.forEach((name, index) => {
+                container.append(' / ');
+                const link = document.createElement(index === segments.length - 1 ? 'b' : 'a');
+                link.textContent = name;
+                if (link.tagName === 'A') link.href = fileUrl('/' + segments.slice(0, index + 1).join('/') + '/');
+                container.appendChild(link);
+            });
+            document.getElementById('folder-title').textContent = segments.at(-1) || t('Root folder');
+        }
+
+        const favoritesKey = 'serverpy_favorites_' + document.body.dataset.rootId;
+        function validFavorite(path) {
+            return typeof path === 'string' && path.startsWith('/') && !path.startsWith('//') && !path.includes('\\') && !path.split('/').some(part => part === '.' || part === '..');
+        }
+        let favorites;
+        try {
+            const saved = JSON.parse(readPreference(favoritesKey, '[]'));
+            favorites = Array.isArray(saved) ? [...new Set(saved.filter(validFavorite))].slice(0, 50) : [];
+        } catch { favorites = []; }
+        function toggleFavorite(path = getCurrentDir()) {
+            if (!validFavorite(path)) return;
+            if (favorites.includes(path)) favorites = favorites.filter(item => item !== path);
+            else if (favorites.length < 50) favorites.push(path);
+            savePreference(favoritesKey, JSON.stringify(favorites));
+            renderFavorites();
+        }
+        function renderFavorites() {
+            const container = document.getElementById('favorite-list');
+            container.replaceChildren();
+            favorites.forEach(path => {
+                const row = document.createElement('div'); row.className = 'favorite-row';
+                const link = document.createElement('a'); link.href = fileUrl(path);
+                link.textContent = path === '/' ? t('Root folder') : path.split('/').filter(Boolean).at(-1);
+                link.title = path; link.dataset.dropFolder = path;
+                if (path === getCurrentDir()) link.setAttribute('aria-current', 'page');
+                const remove = document.createElement('button'); remove.className = 'tool-btn'; remove.textContent = '×';
+                remove.setAttribute('aria-label', t('Remove favorite') + ': ' + link.textContent);
+                remove.addEventListener('click', () => toggleFavorite(path));
+                row.append(link, remove); container.appendChild(row);
+            });
+            if (!favorites.length) container.appendChild(treeMessage('No favorites yet'));
+            const button = document.getElementById('btn-favorite');
+            const active = favorites.includes(getCurrentDir());
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+            button.innerHTML = svgIcon('star') + '<span data-i18n="' + (active ? 'REMOVE FAVORITE' : 'FAVORITE') + '">' + t(active ? 'REMOVE FAVORITE' : 'FAVORITE') + '</span>';
+        }
+
+        let searchTimer, searchController;
+        let searchVersion = 0;
+        function handleSearch(value) {
+            clearTimeout(searchTimer);
+            searchController?.abort();
+            searchVersion++;
+            const recursive = document.getElementById('search-recursive').checked;
+            savePreference('serverpy_recursive_search', String(recursive));
+            const searching = recursive && !!value.trim();
+            document.getElementById('fileGrid').hidden = searching;
+            document.querySelector('.list-headings').hidden = searching;
+            document.getElementById('search-results').hidden = !searching;
+            document.getElementById('search-status').hidden = !searching;
+            if (!searching) { filterFiles(value); return; }
+            selectedFiles.clear(); updateToolbar();
+            document.getElementById('search-results').replaceChildren();
+            document.getElementById('search-status').textContent = t('Searching shared folder...');
+            document.getElementById('folder-empty').hidden = true;
+            searchTimer = setTimeout(() => searchShared(value.trim(), searchVersion), 300);
+        }
+        async function searchShared(query, version = searchVersion) {
+            searchController = new AbortController();
+            try {
+                const response = await checkedFetch('/api/search?q=' + encodeURIComponent(query), {signal: searchController.signal});
+                const data = await response.json();
+                if (version !== searchVersion) return;
+                const container = document.getElementById('search-results'); container.replaceChildren();
+                data.items.forEach(item => {
+                    const row = document.createElement('div'); row.className = 'search-result';
+                    const icon = document.createElement('span'); icon.innerHTML = svgIcon(item.directory ? 'folder' : 'file', 'file-icon');
+                    const info = document.createElement('div'); info.className = 'result-info';
+                    const name = document.createElement('strong'); name.textContent = item.name;
+                    const location = document.createElement('small'); location.textContent = item.path;
+                    info.append(name, location);
+                    const open = document.createElement('a'); open.className = 'tool-btn'; open.textContent = t('OPEN');
+                    open.dataset.i18n = 'OPEN'; open.href = fileUrl(item.path + (item.directory ? '/' : ''));
+                    const card = {dataset: {name: item.name, path: item.path, directory: String(item.directory)}};
+                    if (previewType(card)) open.addEventListener('click', event => {event.preventDefault(); openPreview(card);});
+                    const parent = document.createElement('a'); parent.className = 'tool-btn'; parent.textContent = t('Open containing folder');
+                    parent.dataset.i18n = 'Open containing folder'; parent.href = fileUrl(item.path.slice(0, item.path.lastIndexOf('/') + 1));
+                    row.append(icon, info, open, parent); container.appendChild(row);
+                });
+                if (!data.items.length) container.appendChild(treeMessage('No files match'));
+                document.getElementById('search-status').textContent = t('{count} results', {count: data.items.length}) + (data.partial ? ' · ' + t('Partial results. Refine your search.') : '');
+            } catch (error) {
+                if (version !== searchVersion) return;
+                document.getElementById('search-status').textContent = t('Search failed. Try again.');
+                const retry = document.createElement('button'); retry.className = 'tool-btn'; retry.dataset.i18n = 'Retry'; retry.textContent = t('Retry');
+                retry.addEventListener('click', () => handleSearch(document.querySelector('.search-input').value));
+                document.getElementById('search-results').replaceChildren(retry);
+            }
+        }
+
+        let recoveryMode = 'trash', recoveryItems = [], recoveryLoading = false;
+        async function openRecovery(mode) {
+            recoveryMode = mode;
+            const dialog = document.getElementById('recovery-dialog');
+            if (!dialog.open) dialog.showModal();
+            document.getElementById('recovery-status').textContent = '';
+            recoveryLoading = true; renderRecovery();
+            try {
+                const data = await (await checkedFetch('/api/' + mode)).json();
+                if (recoveryMode === mode) recoveryItems = data.items;
+            } catch (error) { document.getElementById('recovery-status').textContent = error.message; recoveryItems = []; }
+            finally { recoveryLoading = false; renderRecovery(); }
+        }
+        function renderRecovery() {
+            const trash = recoveryMode === 'trash';
+            document.getElementById('recovery-title').textContent = t(trash ? 'Trash' : 'Recent moves');
+            document.getElementById('recovery-intro').textContent = t(trash ? 'Deleted files stay here until you restore them.' : 'Undo recent moves without replacing existing files.');
+            const container = document.getElementById('recovery-list'); container.replaceChildren();
+            if (recoveryLoading) { container.appendChild(treeMessage('Loading...')); return; }
+            recoveryItems.forEach(item => {
+                const row = document.createElement('div'); row.className = 'recovery-row';
+                const info = document.createElement('div'); info.className = 'result-info';
+                const name = document.createElement('strong'); name.textContent = item.name;
+                const location = document.createElement('small'); location.textContent = trash ? item.path : item.source + ' → ' + item.destination;
+                const date = document.createElement('small'); date.textContent = new Date((item.deleted || item.moved) * 1000).toLocaleString(interfaceLanguage === 'pt' ? 'pt-BR' : 'en-US');
+                info.append(name, location, date);
+                const button = document.createElement('button'); button.className = 'tool-btn active'; button.textContent = t(trash ? 'RESTORE' : 'UNDO');
+                button.disabled = document.body.dataset.allowMod !== 'true' || operationBusy;
+                button.addEventListener('click', async () => {
+                    if (!confirm(t(trash ? 'Restore {name}?' : 'Undo move of {name}?', {name: item.name}))) return;
+                    container.querySelectorAll('button').forEach(button => button.disabled = true);
+                    document.getElementById('recovery-status').textContent = '';
+                    try {
+                        await apiRequest(trash ? '/api/restore' : '/api/undo-move', {id: item.id});
+                        recoveryItems = recoveryItems.filter(entry => entry.id !== item.id);
+                        await refreshListing();
+                    } catch (error) { document.getElementById('recovery-status').textContent = error.message; }
+                    finally { renderRecovery(); }
+                });
+                row.append(info, button); container.appendChild(row);
+            });
+            if (!recoveryItems.length) container.appendChild(treeMessage(trash ? 'Trash is empty' : 'No recent moves'));
+        }
+
+        document.querySelectorAll('.toolbar button').forEach(button => {
+            if (/newFolder|newFile|upload-input/.test(button.getAttribute('onclick') || '')) button.dataset.mutation = 'true';
+        });
+        // Initialize toolbar on load
+        window.explorerReady = true;
+        renderBreadcrumbs(); renderFavorites(); refreshThemeLabel(); decorateFiles();
+        document.querySelector('.search-icon').innerHTML = svgIcon('search');
+        const toolbarIcons = {newFolder: 'folder', newFile: 'file', upload: 'upload', rename: 'edit', copyCutSelected: 'copy', pasteClipboard: 'paste', deleteSelected: 'trash', openEditor: 'edit', previewSelected: 'eye', downloadZip: 'download', setView: 'grid', toggleSidebar: 'folder', openRecovery: 'history', openTransfers: 'upload'};
+        document.querySelectorAll('.tool-btn[onclick]').forEach(button => {
+            if (button.id === 'btn-favorite' || button.id === 'btn-theme') return;
+            const action = button.getAttribute('onclick');
+            let name = Object.keys(toolbarIcons).find(key => action.includes(key));
+            if (!name && action.includes('upload-input')) name = 'upload';
+            if (!name) return;
+            let kind = toolbarIcons[name];
+            if (button.id === 'btn-cut') kind = 'cut';
+            if (button.id === 'btn-view-list') kind = 'list';
+            if (action.includes("openRecovery('trash')")) kind = 'trash';
+            const icon = button.querySelector('i') || document.createElement('i');
+            icon.innerHTML = svgIcon(kind);
+            if (!icon.parentElement) button.prepend(icon);
+        });
+        updateToolbar();
+        setView(readPreference('serverpy_view', 'grid'));
+        sortFiles(readPreference('serverpy_sort', 'name'));
+        formatFileDates();
+        toggleSidebar(readPreference('serverpy_sidebar', matchMedia('(min-width: 601px)').matches ? 'true' : 'false') === 'true');
+        document.getElementById('search-recursive').checked = readPreference('serverpy_recursive_search', 'false') === 'true';
+    </script>
+</body>
+</html>

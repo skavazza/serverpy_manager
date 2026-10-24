@@ -1,0 +1,15 @@
+:root { color-scheme: light dark; font: 16px/1.5 system-ui, sans-serif; }
+body { margin: 0; background: #121923; color: #e8eef6; }
+main { max-width: 960px; margin: auto; padding: 24px; }
+header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; }
+h1 { font-size: 1.6rem; }
+label { display: flex; align-items: center; gap: 8px; }
+button, select { min-height: 44px; padding: 8px 14px; border: 1px solid #73859c; border-radius: 6px; background: #243347; color: #fff; font: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 3px solid #7cc9ff; outline-offset: 3px; }
+a { color: #8ed3ff; }
+.preview { display: flex; align-items: center; justify-content: center; min-height: 220px; aspect-ratio: 16 / 9; background: #06090e; border: 1px solid #43546a; border-radius: 8px; overflow: hidden; }
+img { max-width: 100%; max-height: 80vh; object-fit: contain; }
+img[hidden] { display: none; }
+#status { min-height: 1.5em; }
+@media (max-width: 500px) { main { padding: 12px; } h1 { font-size: 1.3rem; } .preview { min-height: 160px; } }
