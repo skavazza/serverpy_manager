@@ -5,6 +5,7 @@ from PySide6.QtWidgets import QLineEdit, QComboBox
 
 
 PORTUGUESE = {
+    'Quick actions': 'Ações rápidas',
     'System intents require a general administrator login and password.': 'Os comandos do sistema exigem login e senha do administrador geral.',
     'Maximum transmission resolution:': 'Resolução máxima da transmissão:',
     'JPEG quality:': 'Qualidade JPEG:',

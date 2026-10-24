@@ -19,6 +19,7 @@ from .scanning import ScannerPanel
 from .camera import CameraPanel
 from .access import FolderAccessPanel
 from .profiles import ProfilesPanel
+from .action_toolbar import create_action_toolbar
 
 
 class MainNavigation:
@@ -117,6 +118,7 @@ class MainNavigation:
         original_scroll.hide()
         original_scroll.deleteLater()
         self.setup_menus()
+        self.toolbar = create_action_toolbar(self.window, self.actions)
 
     def move_widget(self, widget, title):
         parent = widget.parentWidget()
@@ -190,8 +192,7 @@ class MainNavigation:
         for code, label in (('en', 'English'), ('pt', 'Português')):
             action = self.add_action(
                 self.menus['Language'], 'language_' + code, label,
-                lambda code=code: controller.language_combo.setCurrentIndex(
-                    controller.language_combo.findData(code)),
+                lambda code=code: controller.change_language(code),
             )
             action.setCheckable(True)
             self.language_group.addAction(action)
@@ -219,6 +220,8 @@ class MainNavigation:
 
     def retranslate(self):
         language = self.controller.language
+        self.toolbar.setWindowTitle(language.text('Quick actions'))
+        self.toolbar.setAccessibleName(language.text('Quick actions'))
         language.apply(self.translations)
         for index, source in enumerate(self.TAB_TITLES):
             self.tabs.setTabText(index, language.text(source))

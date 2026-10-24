@@ -79,23 +79,7 @@ class AppController:
         self.network_share_supported = is_platform_supported()
         self.navigation = MainNavigation(self)
             
-        language_row = QHBoxLayout()
-        self.language_label = QLabel("Language:", self.window)
-        self.language_combo = QComboBox(self.window)
-        self.language_combo.setObjectName("combo_language")
-        self.language_combo.addItem("English", "en")
-        self.language_combo.addItem("Português", "pt")
-        self.language_combo.setCurrentIndex(self.language_combo.findData(self.language.code))
-        self.language_label.setBuddy(self.language_combo)
-        language_row.addWidget(self.language_label)
-        language_row.addWidget(self.language_combo)
-        language_row.addStretch()
-        self.about_button = QPushButton('About', self.window)
-        self.about_button.clicked.connect(self.show_about)
-        language_row.addWidget(self.about_button)
-        self.window.centralWidget().layout().insertLayout(0, language_row)
         self.ui_translations = self.language.capture(self.window)
-        self.language_combo.currentIndexChanged.connect(self.change_language)
 
         self.log_window = LogWindow(self.window, self.language)
         self.setup_logging()
@@ -396,8 +380,10 @@ class AppController:
                         'folder_users': self.folder_users, 'folder_users_enabled': self.folder_users_enabled})
         self.settings.setValue('server/options', json.dumps(options, ensure_ascii=False))
 
-    def change_language(self):
-        self.language.code = self.language_combo.currentData()
+    def change_language(self, code):
+        if code not in ('en', 'pt') or code == self.language.code:
+            return
+        self.language.code = code
         self.settings.setValue("interface_language", self.language.code)
         self.refresh_language()
 

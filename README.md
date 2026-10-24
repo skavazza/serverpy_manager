@@ -18,7 +18,8 @@ arquivos, dispositivos e serviços locais pela interface gráfica.
   transferência de arquivos.
 - **Dispositivos locais:** câmeras, scanners, impressoras, unidades USB e
   consulta de portas com FindPort.
-- **Interface:** português e inglês.
+- **Interface:** português e inglês, menus e barra superior com ícones de
+  ações rápidas, dicas traduzidas e atalhos de teclado.
 
 Documentação por recurso:
 [Android](docs/android.md) · [SSH/SFTP](docs/ssh.md) ·

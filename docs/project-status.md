@@ -20,7 +20,9 @@ que ainda merece atenção. Os guias por funcionalidade estão em [`docs/`](.).
 - **Integrações locais:** câmeras, scanners, impressoras, armazenamento USB,
   compartilhamento Windows e FindPort, conforme suporte do sistema e dos
   dispositivos.
-- **Interface:** português e inglês.
+- **Interface:** português e inglês; barra superior de ações com ícones para
+  iniciar/parar, registros, copiar URL, navegador, QR Code e Sobre. Idioma pelo
+  menu, sem a linha anterior de seletor e botão Sobre duplicados.
 
 Veja os guias [Android](android.md), [SSH](ssh.md),
 [transferências](transfers.md), [FindPort](findport.md),
@@ -66,6 +68,10 @@ Veja os guias [Android](android.md), [SSH](ssh.md),
   Qt/HTTP e Chrome aprovados, com arquivos rastreados inalterados. A API do
   GitHub confirmou `skavazza/serverpy_manager` privado; revisão limitada da
   árvore atual sem ocorrências dos padrões de credenciais/dados locais verificados.
+- Barra de ações: 301 testes aprovados no ambiente Windows existente e
+  roteiro Qt/HTTP nas dez abas aprovado. O teste da barra confere ações
+  compartilhadas com menus, estados de início/parada, abertura de Sobre e
+  nomes acessíveis traduzidos; a linha redundante de idioma/Sobre foi removida.
 - Uso interativo no Windows, hardware físico de câmera/scanner/impressora e vários caminhos de
   rede precisam de validações específicas; testes simulados não substituem
   essas verificações.

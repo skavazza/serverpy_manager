@@ -264,11 +264,11 @@ class TestControllerShareIntegration(unittest.TestCase):
             self.assertTrue(btn.isEnabled())
 
             # Portuguese translation check
-            controller.language_combo.setCurrentIndex(1)
+            controller.navigation.actions['language_pt'].trigger()
             self.assertEqual(btn.text(), "COMPARTILHAR PASTA NA REDE")
 
             # English translation check
-            controller.language_combo.setCurrentIndex(0)
+            controller.navigation.actions['language_en'].trigger()
             self.assertEqual(btn.text(), "SHARE FOLDER ON NETWORK")
 
             # Click action executes script through dialog
@@ -323,7 +323,7 @@ class TestControllerShareIntegration(unittest.TestCase):
         try:
             btn = controller.window.btn_share_printers
             self.assertFalse(btn.isHidden())
-            controller.language_combo.setCurrentIndex(1)
+            controller.navigation.actions['language_pt'].trigger()
             self.assertEqual(btn.text(), "COMPARTILHAR IMPRESSORAS NA REDE")
             with patch("src.gui.controller.PrinterSharingDialog") as dialog:
                 btn.click()

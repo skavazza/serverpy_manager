@@ -46,7 +46,7 @@ class TestInterfaceLanguage(unittest.TestCase):
         controller.window.line_root_folder.setText(self.temp_dir.name)
         controller.window.line_cloudflare_hostname.setText('')
         controller.window.combo_interface.setCurrentIndex(1)
-        controller.language_combo.setCurrentIndex(1)
+        controller.navigation.actions['language_pt'].trigger()
         controller.restoring_preferences = False
         controller.validate_inputs()
 
@@ -59,14 +59,47 @@ class TestInterfaceLanguage(unittest.TestCase):
         self.assertIn('https://wa.me/5511992748645', dialog.fields['whatsapp'].text())
         self.assertEqual(dialog.fields['license'].text(), 'Somente uso pessoal (não comercial)')
         self.assertIn('LICENÇA PARA USO PESSOAL', dialog.license_text.toPlainText())
-        self.assertEqual(controller.about_button.text(), 'Sobre')
-        controller.language_combo.setCurrentIndex(0)
-        self.assertEqual(controller.about_button.text(), 'About')
+        self.assertEqual(controller.navigation.actions['about'].text(), 'Sobre')
+        controller.navigation.actions['language_en'].trigger()
+        self.assertEqual(controller.navigation.actions['about'].text(), 'About')
         english = AboutDialog(controller.window, controller.language)
         self.assertEqual(english.windowTitle(), 'About')
         self.assertEqual(english.fields['license'].text(), 'Personal use only (non-commercial)')
         self.assertEqual(english.fields['developer'].text(), 'KrakenTech Services')
-        controller.language_combo.setCurrentIndex(1)
+        controller.navigation.actions['language_pt'].trigger()
+
+    def test_toolbar_uses_live_menu_actions_and_translated_accessible_names(self):
+        controller = self.controller
+        navigation = controller.navigation
+        toolbar = navigation.toolbar
+        self.assertFalse(hasattr(controller, 'language_combo'))
+        self.assertFalse(hasattr(controller, 'about_button'))
+        for key in ('start', 'stop', 'logs', 'copy', 'open', 'qr', 'about'):
+            action = navigation.actions[key]
+            button = toolbar.widgetForAction(action)
+            self.assertIs(button.defaultAction(), action)
+            self.assertFalse(action.icon().isNull())
+            self.assertEqual(button.accessibleName(), action.text())
+        self.assertFalse(navigation.actions['stop'].isEnabled())
+        self.assertFalse(navigation.actions['qr'].isEnabled())
+        toolbar.widgetForAction(navigation.actions['start']).click()
+        try:
+            self.assertTrue(controller.server_manager.is_running)
+            self.assertFalse(navigation.actions['start'].isEnabled())
+            self.assertTrue(navigation.actions['stop'].isEnabled())
+            self.assertTrue(navigation.actions['qr'].isEnabled())
+            navigation.actions['language_en'].trigger()
+            self.assertEqual(toolbar.widgetForAction(navigation.actions['copy']).accessibleName(), 'Copy URL')
+            with patch('src.gui.controller.AboutDialog') as dialog:
+                toolbar.widgetForAction(navigation.actions['about']).click()
+                dialog.return_value.exec.assert_called_once()
+            toolbar.widgetForAction(navigation.actions['stop']).click()
+            self.assertFalse(controller.server_manager.is_running)
+            self.assertTrue(navigation.actions['start'].isEnabled())
+            self.assertFalse(navigation.actions['copy'].isEnabled())
+        finally:
+            if controller.server_manager.is_running:
+                controller._stop_server()
 
     def test_tabs_and_menu_navigation_preserve_configuration_and_language(self):
         controller = self.controller
@@ -173,9 +206,9 @@ class TestInterfaceLanguage(unittest.TestCase):
         self.assertTrue(panel.run_button.isEnabled())
         self.assertEqual(panel.table.item(0, 0).text(), 'Resolução de nome')
         self.assertEqual(panel.table.item(1, 1).text(), 'Falhou')
-        self.controller.language_combo.setCurrentIndex(0)
+        self.controller.navigation.actions['language_en'].trigger()
         self.assertEqual(panel.table.item(0, 0).text(), 'Name resolution')
-        self.controller.language_combo.setCurrentIndex(1)
+        self.controller.navigation.actions['language_pt'].trigger()
 
     def test_custom_headers_dialog_validation_and_persistence(self):
         controller = self.controller
@@ -199,10 +232,10 @@ class TestInterfaceLanguage(unittest.TestCase):
         dialog.accept()
         self.assertEqual(dialog.result(), 1)
         self.assertEqual(dialog.get_headers()['X-Content-Type-Options'], 'nosniff')
-        controller.language_combo.setCurrentIndex(0)
+        controller.navigation.actions['language_en'].trigger()
         self.assertEqual(controller.advanced_group.title(), 'Advanced')
         self.assertEqual(controller.headers_button.text(), 'Configure headers')
-        controller.language_combo.setCurrentIndex(1)
+        controller.navigation.actions['language_pt'].trigger()
         controller.window.chk_custom_headers.setChecked(False)
         self.assertEqual(controller.custom_headers, {'Cache-Control': 'no-store'})
 
@@ -251,9 +284,9 @@ class TestInterfaceLanguage(unittest.TestCase):
         window.line_port.setText('0')
         window.line_root_folder.setText(os.path.join(self.temp_dir.name, 'missing'))
         self.assertIn('line_root_folder', controller.validation_errors)
-        controller.language_combo.setCurrentIndex(0)
+        controller.navigation.actions['language_en'].trigger()
         self.assertEqual(controller.field_errors['line_root_folder'].text(), 'Select an existing folder.')
-        controller.language_combo.setCurrentIndex(1)
+        controller.navigation.actions['language_pt'].trigger()
         self.assertEqual(controller.field_errors['line_root_folder'].text(), 'Selecione uma pasta existente.')
         window.line_root_folder.setText(self.temp_dir.name)
         self.assertTrue(window.btn_start.isEnabled())
@@ -423,7 +456,7 @@ class TestInterfaceLanguage(unittest.TestCase):
     def test_switch_preserves_values_and_running_server(self):
         controller = self.controller
         window = controller.window
-        self.assertEqual(controller.language_combo.currentData(), "pt")
+        self.assertEqual(controller.language.code, "pt")
         self.assertEqual(window.groupBox_files.title(), "Arquivos")
         window.line_username.setText("Username")
         window.line_password.setText("Password")
@@ -433,13 +466,13 @@ class TestInterfaceLanguage(unittest.TestCase):
         controller._start_server()
         self.assertTrue(controller.server_manager.is_running)
         httpd = controller.server_manager.httpd
-        controller.language_combo.setCurrentIndex(0)
+        controller.navigation.actions['language_en'].trigger()
         self.assertEqual(window.btn_start.text(), "STOP")
         self.assertEqual(window.lbl_status.text(), "RUNNING 🚀")
         self.assertEqual(window.groupBox_files.title(), "Files")
         self.assertFalse(window.line_port.isEnabled())
-        self.assertTrue(controller.language_combo.isEnabled())
-        controller.language_combo.setCurrentIndex(1)
+        self.assertTrue(controller.navigation.menus['Language'].isEnabled())
+        controller.navigation.actions['language_pt'].trigger()
         self.assertEqual(window.btn_start.text(), "PARAR")
         self.assertEqual(window.lbl_status.text(), "EM EXECUÇÃO 🚀")
         self.assertEqual(controller.log_window.windowTitle(), "Registros do servidor")

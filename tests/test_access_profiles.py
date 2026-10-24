@@ -217,7 +217,7 @@ class TestConfigurationProfiles(unittest.TestCase):
 
     def test_intents_without_general_login_show_translated_error_before_start(self):
         controller = self.controller()
-        controller.language_combo.setCurrentIndex(controller.language_combo.findData('pt'))
+        controller.navigation.actions['language_pt'].trigger()
         controller.window.chk_intent.setChecked(True)
         controller.window.chk_auth.setChecked(False)
         with patch.object(controller.server_manager, 'start_server') as start:
