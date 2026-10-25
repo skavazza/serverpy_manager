@@ -29,6 +29,7 @@ wheels/
 #  before PyInstaller builds the exe, so may as well ignore them.
 *.manifest
 *.spec
+!/packaging/windows.spec
 
 # Installer logs
 pip-log.txt

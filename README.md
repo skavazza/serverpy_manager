@@ -64,6 +64,10 @@ O scrcpy é obtido como executável externo oficial ou binário do sistema.
 Consulte [Third-Party Notices](THIRD_PARTY_NOTICES.md) para detalhes de
 proveniência e limites da cópia privada.
 
+Para gerar o pacote portátil Windows, consulte
+[Empacotamento Windows](docs/windows-packaging.md). A abertura local do executável
+foi verificada; a homologação em Windows limpo e da VPN permanece pendente.
+
 ## Requisitos
 
 - Python 3.10 ou superior.
