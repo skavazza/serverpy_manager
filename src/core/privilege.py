@@ -40,6 +40,8 @@ def relaunch_elevated():
 
 def release_replaced_instance():
     """Called by the administrator copy once its window is visible: close the user copy."""
+    if not sys.platform.startswith('linux'):
+        return
     value = os.environ.pop(REPLACE_VARIABLE, '')
     if os.geteuid() != 0 or not value.isdigit() or not os.environ.get('PKEXEC_UID', '').isdigit():
         return

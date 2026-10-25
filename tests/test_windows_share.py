@@ -282,7 +282,7 @@ class TestControllerShareIntegration(unittest.TestCase):
                 "without_password": False,
             }
             with patch("src.gui.controller.ShareFolderDialog", return_value=mock_dialog):
-                with patch("src.gui.controller.execute_share_script", return_value=(True, "OK")) as mock_exec:
+                with patch("src.gui.controller.execute_share_script", return_value=(True, "OK")) as mock_exec, patch("src.gui.controller.QMessageBox.information"):
                     controller.on_share_folder_network()
                     mock_exec.assert_called_once_with(
                         folder=self.temp_dir.name,
