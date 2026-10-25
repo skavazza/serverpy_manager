@@ -557,7 +557,7 @@ class ActiveSharesDialog(QDialog):
         self._QTimer = _QTimer
         self.language = language or InterfaceLanguage()
         self.setWindowTitle(self.language.text("Active Network Shares"))
-        self.resize(600, 380)
+        self.resize(1000, 480)
 
         icon = get_app_icon()
         if not icon.isNull():
@@ -568,7 +568,7 @@ class ActiveSharesDialog(QDialog):
         # Description
         self.help_label = QLabel(
             self.language.text(
-                "Network shares currently active on this machine (SMB). "
+                "Network shares currently active on this machine (SMB/Windows). "
                 "System shares (C$, ADMIN$, IPC$) are hidden."
             ),
             self,
@@ -578,15 +578,20 @@ class ActiveSharesDialog(QDialog):
         layout.addWidget(self.help_label)
 
         # Table
-        self.table = QTableWidget(0, 3, self)
+        self.table = QTableWidget(0, 4, self)
         self.table.setHorizontalHeaderLabels([
             self.language.text("Share name"),
             self.language.text("Local path"),
             self.language.text("Description"),
+            self.language.text("Access addresses"),
         ])
-        self.table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
-        self.table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
-        self.table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.Stretch)
+        self.table.horizontalHeader().setMinimumSectionSize(100)
+        self.table.verticalHeader().hide()
+        self.table.verticalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
+        self.table.setWordWrap(True)
+        self.table.setShowGrid(False)
+        self.table.setSelectionMode(QTableWidget.SingleSelection)
         self.table.setSelectionBehavior(QTableWidget.SelectRows)
         self.table.setEditTriggers(QTableWidget.NoEditTriggers)
         self.table.setAlternatingRowColors(True)
@@ -613,6 +618,7 @@ class ActiveSharesDialog(QDialog):
 
         # Close button
         self.buttons = QDialogButtonBox(QDialogButtonBox.Close, self)
+        self.buttons.button(QDialogButtonBox.Close).setText(self.language.text("Close"))
         self.buttons.rejected.connect(self.reject)
         layout.addWidget(self.buttons)
 
@@ -648,9 +654,31 @@ class ActiveSharesDialog(QDialog):
             self.table.setItem(row, 0, QTableWidgetItem(share["name"]))
             self.table.setItem(row, 1, QTableWidgetItem(share["path"]))
             self.table.setItem(row, 2, QTableWidgetItem(share["description"]))
+            addresses = self._access_addresses(share["name"])
+            address_item = QTableWidgetItem(addresses)
+            address_item.setToolTip(addresses)
+            self.table.setItem(row, 3, address_item)
+            for column in range(4):
+                item = self.table.item(row, column)
+                item.setTextAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+                item.setToolTip(item.text())
 
         self._update_remove_btn()
         self.btn_refresh.setEnabled(True)
+
+    @staticmethod
+    def _access_addresses(share_name):
+        import socket
+        import psutil
+        hosts = []
+        try:
+            for addresses in psutil.net_if_addrs().values():
+                for addr in addresses:
+                    if addr.family == socket.AF_INET and not addr.address.startswith(("127.", "169.254.")):
+                        hosts.append(addr.address)
+        except OSError:
+            pass
+        return "\n".join(f"\\\\{h}\\{share_name}" for h in dict.fromkeys(hosts))
 
     def _update_remove_btn(self):
         self.btn_remove.setEnabled(self.table.currentRow() >= 0 and self.table.rowCount() > 0)

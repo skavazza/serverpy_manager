@@ -726,6 +726,7 @@ PORTUGUESE = {
     'Export logs': 'Exportar registros',
     'Text files (*.txt);;All Files (*)': 'Arquivos de texto (*.txt);;Todos os arquivos (*)',
     'Unable to export logs.': 'Não foi possível exportar os registros.',
+    'Access addresses': 'Endereços de acesso',
     # Active shares dialog
     'MANAGE ACTIVE SHARES': 'GERENCIAR COMPARTILHAMENTOS ATIVOS',
     'Active Network Shares': 'Compartilhamentos de Rede Ativos',
