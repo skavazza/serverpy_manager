@@ -20,12 +20,13 @@ from .camera import CameraPanel
 from .access import FolderAccessPanel
 from .profiles import ProfilesPanel
 from .action_toolbar import create_action_toolbar
+from .vpn_panel import VPNPanel
 
 
 class MainNavigation:
     TAB_TITLES = (
         'Server', 'Files', 'Printers', 'Scanners', 'Cameras', 'USB devices',
-        'Android', 'Security', 'Settings', 'Network',
+        'Android', 'Security', 'Settings', 'Network', 'VPN and tunnels',
     )
 
     def __init__(self, controller):
@@ -110,6 +111,8 @@ class MainNavigation:
         for panel in (self.activity, self.network, self.ssh):
             panel.layout().setContentsMargins(8, 8, 8, 8)
         self.pages['Network'].layout().addWidget(self.network_tabs)
+        self.vpn = VPNPanel(controller, self.pages['VPN and tunnels'])
+        self.pages['VPN and tunnels'].layout().addWidget(self.vpn)
         self.tabs.currentChanged.connect(self.load_tab)
 
         for page in self.pages.values():
@@ -132,6 +135,8 @@ class MainNavigation:
             self.storage.refresh()
         elif title == 'Android' and not self.android.devices_loaded:
             self.android.refresh_devices()
+        elif title == 'VPN and tunnels' and not self.vpn.loaded:
+            self.vpn.refresh()
 
     def add_description(self, title, source):
         label = QLabel(source, self.pages[title])
@@ -178,7 +183,7 @@ class MainNavigation:
         for index, title in enumerate(self.TAB_TITLES):
             action = self.add_action(
                 self.menus['Navigate'], 'tab_' + str(index), title,
-                lambda index=index: self.tabs.setCurrentIndex(index), 'Alt+' + str(index + 1),
+                lambda index=index: self.tabs.setCurrentIndex(index), 'Alt+' + str(index + 1) if index < 9 else None,
             )
             action.setCheckable(True)
             self.tab_actions.append(action)
@@ -237,6 +242,7 @@ class MainNavigation:
         self.profiles.retranslate()
         self.shared_folders.reload()
         self.network.retranslate()
+        self.vpn.retranslate()
         self.activity.retranslate()
         self.ssh.retranslate()
         self.network_tabs.setTabText(0, language.text('Activity'))

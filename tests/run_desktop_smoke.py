@@ -67,7 +67,7 @@ def main():
                     image = controller.window.grab()
                     assert not image.isNull(), title
                     assert image.save(str(output / f'{size[0]}-{title.lower().replace(" ", "-")}.png'))
-            results.append('All 10 Qt tabs rendered at 980x760 and 1440x900 (offscreen).')
+            results.append('All 11 Qt tabs rendered at 980x760 and 1440x900 (offscreen).')
             controller.navigation.tabs.setCurrentIndex(0)
             controller._start_server()
             assert controller.server_manager.is_running, 'Controller failed to start server'

@@ -275,9 +275,17 @@ def _list_smb_shares_linux() -> tuple[bool, list[dict] | str]:
     if not net_bin:
         return True, []
     try:
-        res = subprocess.run([net_bin, "usershare", "info", "--long"], capture_output=True, text=True, timeout=15)
+        cmd = [net_bin, "usershare", "info", "--long"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
         if res.returncode != 0:
-            return True, []
+            # Shares created with elevation live in a directory the user may not read.
+            pkexec_bin = shutil.which("pkexec")
+            if pkexec_bin and any(
+                err in res.stderr.lower() for err in ("permissão negada", "permission denied")
+            ):
+                res = subprocess.run([pkexec_bin] + cmd, capture_output=True, text=True, timeout=60)
+            if res.returncode != 0:
+                return True, []
         shares = []
         current = {}
         for line in res.stdout.splitlines():

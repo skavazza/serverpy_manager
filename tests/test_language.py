@@ -105,7 +105,7 @@ class TestInterfaceLanguage(unittest.TestCase):
         controller = self.controller
         navigation = controller.navigation
         tabs = navigation.tabs
-        self.assertEqual(tabs.count(), 10)
+        self.assertEqual(tabs.count(), 11)
         self.assertEqual(navigation.network_tabs.count(), 5)
         self.assertIs(navigation.network_tabs.widget(2), navigation.ssh)
         self.assertEqual(navigation.network_tabs.tabText(2), 'SSH')

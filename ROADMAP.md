@@ -326,6 +326,93 @@ validação USB. O histórico Android abaixo permanece preservado.
     [src/gui/i18n.py](src/gui/i18n.py), [tests/test_android.py](tests/test_android.py),
     [docs/android.md](docs/android.md).
 
+## VPN integrada e túneis — novo escopo aprovado
+
+**Arquitetura aprovada:** um projeto e uma interface com seleção automática
+Windows/Linux, integrações nativas separadas e pacotes de instalação distintos.
+Veja [arquitetura e suporte por plataforma](docs/vpn-platforms.md).
+
+Prioridade: VPN entre computadores com o ServerPy instalado, com um servidor
+que gera convites individuais para os participantes. Acesso aos serviços do
+app pela VPN também está incluído. **Documentação concluída; base técnica em desenvolvimento.**
+Especificação: [VPN, convites e critérios de aceite](docs/vpn.md).
+
+- [~] `VPN-001` — Provar integração WireGuard no Windows, privilégios, chaves,
+  instalação, rotas/firewall e requisitos de distribuição.
+  - **Implementação inicial:** `src/core/vpn.py` gera identidades em memória,
+    valida endpoints/chaves e planeja IPs privados por peer, com diagnóstico
+    somente de leitura. Oito testes direcionados aprovados.
+  - **Segunda etapa:** armazenamento DPAPI por usuário e publicação atômica de
+    identidades; configuração do servidor em memória e plano de serviço restrito
+    ao namespace do app. Vinte testes direcionados passaram com DPAPI real.
+  - **Túnel integrado:** servidor/cliente, executáveis oficiais verificados,
+    importação sob ACL com DPAPI SYSTEM pelo gerenciador, serviço manual,
+    consulta de handshake e checagem de rotas. Vinte testes runtime/painel
+    aprovados com serviço simulado. [Guia Windows](docs/wireguard-windows.md).
+  - **Pendente:** instalação e execução elevada, driver/adaptadores, importação
+    real pelo gerenciador e conexão em dois Windows reais. Instalador 1.1.1
+    baixado e assinatura verificada, sem execução; nenhuma alteração de rede.
+- [~] `VPN-002` — Implementar registro autenticado, convites temporários de uso
+  único, aprovação individual, persistência e revogação. Depende de `VPN-001`.
+  - **Base local implementada:** cadastro SQLite, verificador SHA-256 de token
+    aleatório, validade, consumo único transacional, aprovação com IP exclusivo,
+    rejeição e revogação persistentes. Trinta testes de VPN aprovados.
+  - **Cliente remoto:** convite JSON estrito e cliente HTTPS com cadeia/nome
+    validados e pin SHA-256 antes do envio do token; seis testes do transporte
+    aprovados, incluindo HTTPS real em loopback.
+  - **Servidor implementado:** listener HTTPS limitado, importação de certificado
+    e chave existentes, quatro conexões, limites de corpo/cabeçalhos, prazo de
+    socket e controle de tentativas por IP/global. Testado com cliente real.
+  - **Pendente:** emissão/renovação e proteção integrada da chave TLS, prova de
+    posse da chave WireGuard com handshake real. Alterações de autorização na
+    interface agora param o túnel servidor inteiro antes da mudança; remoção
+    incremental de peers continua futura. Limites de tentativas
+    atuais são voláteis e exigem homologação antes de exposição pública.
+    Esta base foi adiantada sem considerar concluída a prova `VPN-001`.
+- [~] `VPN-003` — Criar aba VPN e túneis, criação/entrada, dispositivos, IPs,
+  estado e reconexão em português/inglês. Depende de `VPN-002`.
+  - **Implementado:** aba e navegação traduzidas, preparação local persistente,
+    diagnóstico, tokens locais e tabela de aprovação/rejeição/revogação.
+    Operações em segundo plano, sem ativação de túnel. Cinquenta e seis testes
+    direcionados e roteiro Qt/HTTP nas 11 abas aprovados.
+  - **Túnel integrado:** iniciar servidor, exportar perfil público de cliente,
+    conectar cliente e desconectar. Serviço ativo e handshake recente são
+    estados distintos. Exige instalação oficial e sessão administrativa.
+  - **Pendente:** reconexão/retomada automática e homologação do estado e tráfego
+    com driver real. Tokens locais isolados não conectam máquinas.
+  - **Importação inicial:** conferir convite portátil na interface, sem gravação
+    de credenciais ou requisição automática.
+  - **Cadastro remoto integrado:** iniciar/parar listener, gerar convite completo,
+    enviar pedido com identidade DPAPI e aprovar localmente. Teste com dois
+    painéis e TLS real aprovado. Consulta remota de aprovação no cliente pendente;
+    a conexão WireGuard usa perfil público exportado após a aprovação.
+- [ ] `VPN-004` — Homologar duas máquinas Windows reais, acesso ao ServerPy,
+  reinício, falhas, revogação e preservação da rede. Depende de `VPN-003`.
+- [ ] `VPN-005` — Definir e validar intermediário para CGNAT, incluindo limite
+  de confiança e criptografia entre participantes. Depende de `VPN-004`.
+- [ ] `VPN-006` — Ampliar para LAN remota, saída de internet opcional e túneis
+  TCP com permissões e testes próprios. Depende de `VPN-004` e da topologia
+  definida em `VPN-005` para operação através do intermediário.
+- [ ] `VPN-007` — Validar componentes VPN no executável Windows sem Python,
+  atualização/desinstalação e recuperação. Iniciar análise em `VPN-001` e
+  concluir após homologar os modos incluídos no pacote.
+- [x] `VPN-008` — Separar os contratos de identidade/túnel e selecionar o sistema
+  automaticamente. A interface usa fábricas comuns; Windows preserva dados e
+  DPAPI. Plataforma desconhecida ou falha não acionam fallback inseguro.
+  - **Validado:** regressão final com 382 testes aprovados em Windows e roteiro
+    Qt/HTTP nas 11 abas; testes Linux desta rodada são simulados.
+- [~] `VPN-009` — Implementar e homologar Ubuntu: backend kernel wg/ip, memória
+  anônima selada e identidades systemd-creds cifradas. Código e testes simulados
+  implementados; faltam execução Ubuntu 24.04+, helper administrativo e matriz
+  Ubuntu↔Ubuntu/Windows. WSL indisponível nesta máquina.
+- [ ] `VPN-010` — Empacotar a mesma base em instalador Windows e .deb Ubuntu,
+  com dependências e testes nativos por sistema, após homologação de cada backend.
+
+Chaves privadas não são compartilhadas; cada participante gera as próprias.
+Por padrão, não encaminhar a internet nem a LAN inteira do servidor. CGNAT
+requer solução adicional de conectividade. A entrega do executável com VPN
+inclui esta homologação; os testes atuais não cobrem esse novo escopo.
+
 ## Concluído
 
 - [x] `ANDR-001` — Conectar Android via ADB USB para transferência e acesso ao servidor <!-- completed: 2026-10-24 01:16 -->

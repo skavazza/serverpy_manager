@@ -108,3 +108,26 @@ recursos disponíveis.
 O [roadmap](ROADMAP.md) registra as melhorias de segurança, HTTP, instalação e
 Android. A validação com dispositivos reais no Windows e a regressão nativa
 Linux das mudanças atuais continuam pendentes; Android por Wi-Fi fica no backlog.
+
+O novo escopo de [VPN integrada e túneis](docs/vpn.md) está documentado, com
+base técnica em desenvolvimento: rede entre instâncias, convites individuais gerados pelo
+servidor e acesso aos serviços do ServerPy pelo IP virtual. O roadmap detalha
+as etapas `VPN-001` a `VPN-007`, incluindo homologação antes do executável com VPN.
+O diagnóstico inicial pode ser executado com `python -m src.core.vpn` no
+ambiente virtual; esse diagnóstico não instala componentes nem altera a rede.
+Na aba **VPN e túneis**, já é possível preparar a rede local, gerar tokens de
+cadastro local e gerenciar autorizações. Esses tokens ainda não conectam outro
+computador; o cadastro remoto usa o convite HTTPS completo descrito abaixo.
+**Conferir convite remoto** valida o formato portátil sem enviar solicitações.
+O cadastro HTTPS já permite iniciar/parar o listener com certificado/chave
+existentes, gerar convites completos e enviar pedidos entre instâncias para
+aprovação local. Foi testado em loopback com dois painéis.
+Os controles de túnel WireGuard Windows já foram integrados e exigem instalação
+oficial e app como administrador. A ativação real ainda não foi homologada;
+veja [pré-requisitos, fluxo e limitações](docs/wireguard-windows.md).
+
+A [arquitetura por plataforma](docs/vpn-platforms.md) mantém um único app que
+seleciona automaticamente Windows ou Linux. O backend Linux foi implementado
+com testes simulados; Ubuntu 24.04+, credenciais systemd, privilégios e túneis
+reais ainda precisam de homologação. Instalador Windows e pacote .deb serão
+distribuições separadas da mesma base de código.

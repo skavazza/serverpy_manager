@@ -101,7 +101,59 @@ A sequência atual é:
    `src/gui/server_config.py`, com cópia das opções mutáveis para isolar a
    sessão. Android separado de unidades USB e SSH/SFTP separado de QR Code e
    diagnóstico, preservando os caminhos públicos de importação (`MAINT-001`).
-6. **Novos recursos:** retomar Android por Wi-Fi após estabilização (`ANDR-008`).
+6. **VPN e túneis — base técnica em desenvolvimento:** conectar duas
+   instâncias como rede privada, servidor gerando convites individuais e
+   acesso aos serviços do app pelo IP virtual. WireGuard é a base proposta;
+   primeiro validar integração Windows, depois cadastro seguro, interface e
+   duas máquinas reais. CGNAT/intermediário, LAN remota e saída de internet
+   têm etapas próprias (`VPN-001` a `VPN-007`). Veja a [especificação](vpn.md).
+   Geração de identidades em memória, planejamento de peers e diagnóstico
+   inicial implementados; oito testes direcionados passaram. WireGuard não
+   encontrado localmente; serviço e túnel real ainda não implementados.
+   A segunda etapa acrescenta persistência DPAPI por usuário com criação
+   atômica e planos de configuração/serviço sem execução. Vinte testes
+   direcionados passaram, incluindo DPAPI real e falhas de persistência.
+   A suíte completa terminou com `OK`, 321 testes; o wrapper PowerShell de
+   redirecionamento marcou stderr como `NativeCommandError`, registrado no guia.
+   Cadastro local SQLite acrescentado: convites com validade e uso único,
+   pedidos pendentes, aprovação e revogação persistentes; 30 testes de VPN
+   aprovados nesta etapa. Transporte autenticado, prova de posse da chave,
+   interface e aplicação em túnel ativo permanecem pendentes.
+   A aba VPN e túneis já oferece diagnóstico, preparação persistente, tokens
+   locais e tabela de autorizações em português/inglês. Os 56 testes
+   direcionados passaram e o roteiro Qt/HTTP aprovou as 11 abas; conexão,
+   cadastro remoto e aplicação em túnel ativo continuam pendentes.
+   A regressão completa após integrar a aba passou: 335 testes em Windows,
+   código de saída zero (`artifacts/vpn-ui-regression.log`).
+   Cliente HTTPS e formato portátil de convites acrescentados, com validação
+   de certificado/nome/pin antes do envio do token. Seis testes do transporte
+   passaram, incluindo HTTPS real em loopback; a aba confere convites sem
+   conexão automática. Servidor de cadastro e prova da chave WireGuard pendentes.
+   O servidor HTTPS de cadastro foi integrado à aba: iniciar/parar, selecionar
+   certificado/chave existentes, gerar convites completos e enviar pedidos para
+   aprovação local. Oito testes do listener e um fluxo com dois painéis passaram
+   usando TLS real em loopback; túnel, prova da chave WireGuard e homologação
+   entre máquinas reais permanecem pendentes.
+   Regressão completa aprovada: 351 testes em Windows, código de saída zero;
+   roteiro Qt/HTTP nas 11 abas aprovado nas duas dimensões de desktop.
+   Integração WireGuard Windows acrescentada: servidor/cliente, perfil público,
+   encerramento, assinatura dos executáveis, importador DPAPI SYSTEM oficial,
+   rotas conflitantes e consulta de handshake. Vinte testes runtime/painel
+   passaram com serviço simulado; o instalador oficial 1.1.1 foi baixado e teve
+   assinatura verificada, sem execução. A máquina segue sem instalação/elevação
+   e nenhum túnel real foi ativado. Veja o [guia Windows](wireguard-windows.md).
+   A regressão completa passou com 365 testes e código de saída zero, além do
+   roteiro Qt/HTTP nas 11 abas. Validação do serviço/driver reais continua pendente.
+   Arquitetura unificada implementada: fábricas de identidade/túnel selecionam
+   Windows ou Linux sem alterar convites, interface ou regras compartilhadas.
+   Backend Ubuntu usa systemd-creds, wg/ip e configuração em memfd; testes Linux
+   são simulados em Windows. Credenciais/kernel reais, helper administrativo e
+   distribuição .deb permanecem pendentes. Veja o [guia](vpn-platforms.md).
+   Regressão final desta etapa: 382 testes aprovados em Windows, código de saída
+   zero, após repetição de uma conexão HTTP abortada na rodada inicial. Os 17
+   testes novos cobrem seleção e simulação Linux; o roteiro Qt/HTTP passou.
+   A validação final do executável com VPN passa a incluir esse novo escopo.
+7. **Android por Wi-Fi:** permanece no backlog após estabilização (`ANDR-008`).
 
 O roadmap também preserva o histórico de controle por USB, scrcpy e pareamento.
 A análise técnica detalhada e as decisões ainda abertas

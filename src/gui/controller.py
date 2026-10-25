@@ -1,5 +1,6 @@
 import sys
 import os
+import re
 import psutil
 import socket
 import ssl
@@ -17,6 +18,7 @@ from .server_config import build_server_config, normalize_public_hostname, Serve
 from .network_tools import QRCodeDialog
 from ..core.shares import validate_shared_folders
 from ..core.access import validate_users
+from ..core.privilege import release_replaced_instance
 from .dialogs import StreamIntercept, LogWindow, CORSDialog, RedirectionDialog, ResponseHeadersDialog, AboutDialog, ShareFolderDialog, ActiveSharesDialog, PrinterSharingDialog, get_app_icon
 from ..core.server import ServerManager
 from ..core.startup import StartupRegistration
@@ -744,6 +746,7 @@ class AppController:
             )
             if success:
                 print(f"[Network Share] {self.language.text(msg)}")
+                self.show_share_addresses(config['name'] or os.path.basename(os.path.abspath(config['folder'])))
             else:
                 print(f"[Network Share Error] {self.language.text(msg)}")
                 if "canceled" not in msg.lower() and "cancelado" not in msg.lower():
@@ -752,6 +755,24 @@ class AppController:
                         self.language.text('Share folder on network'),
                         self.language.text('Unable to launch share script: {error}', error=msg)
                     )
+
+    def show_share_addresses(self, share_name):
+        share_name = re.sub(r'[^\w\- ]', '_', share_name.strip()) if share_name else ''
+        lines = []
+        try:
+            for interface_name, addresses in psutil.net_if_addrs().items():
+                for address in addresses:
+                    if address.family == socket.AF_INET and not address.address.startswith('127.'):
+                        host = address.address
+                        path = f'{host}/{share_name}'
+                        lines.append(f'{interface_name}: \\\\{host}\\{share_name}   |   smb://{path}')
+        except OSError:
+            pass
+        if not lines:
+            return
+        text = 'Access the share from other devices using one of these addresses:\n\n' + '\n'.join(lines)
+        print('[Network Share] ' + text.replace('\n\n', '\n'))
+        QMessageBox.information(self.window, self.language.text('Share folder on network'), text)
 
     def on_manage_shares(self):
         dialog = ActiveSharesDialog(self.window, self.language)
@@ -763,4 +784,5 @@ class AppController:
 
     def run(self):
         self.window.show()
+        QTimer.singleShot(1000, release_replaced_instance)
         sys.exit(self.app.exec())
