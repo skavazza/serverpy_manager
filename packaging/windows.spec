@@ -1,4 +1,5 @@
 from pathlib import Path
+from PyInstaller.utils.hooks import collect_submodules
 
 root = Path(SPECPATH).parent
 datas = [
@@ -12,8 +13,14 @@ datas = [
     (str(root / 'share-folder/share-folder.ps1'), 'share-folder'),
     (str(root / 'vendor/findport'), 'vendor/findport'),
 ]
+hiddenimports = []
+for package in (
+        'vendor.processhunter.core', 'vendor.processhunter.ui',
+        'vendor.systemram.core', 'vendor.systemram.gui'):
+    hiddenimports.extend(collect_submodules(package))
+
 a = Analysis([str(root / 'src/main.py')], pathex=[str(root)], datas=datas,
-             hiddenimports=[], excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets'])
+             hiddenimports=hiddenimports, excludes=['PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets'])
 pyz = PYZ(a.pure)
 exe = EXE(pyz, a.scripts, [], exclude_binaries=True, name='ServerPy',
           console=False, debug=False, upx=False, icon=str(root / 'packaging/serverpy.ico'))

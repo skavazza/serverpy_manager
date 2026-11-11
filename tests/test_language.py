@@ -139,6 +139,14 @@ class TestInterfaceLanguage(unittest.TestCase):
         self.assertIs(navigation.android.parentWidget(), navigation.pages['Android'])
         tabs.setCurrentIndex(0)
 
+    def test_integrated_tools_load_from_vendor_as_child_widgets(self):
+        navigation = self.controller.navigation
+        self.assertTrue(type(navigation.process_hunter).__module__.startswith('vendor.processhunter'))
+        self.assertFalse(navigation.process_hunter.isWindow())
+        if navigation.systemram:
+            self.assertTrue(type(navigation.systemram).__module__.startswith('vendor.systemram'))
+            self.assertFalse(navigation.systemram.isWindow())
+
     def test_server_menu_tracks_validation_and_server_state(self):
         controller = self.controller
         actions = controller.navigation.actions

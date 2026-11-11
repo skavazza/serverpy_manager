@@ -25,9 +25,9 @@ from ..core.startup import StartupRegistration
 from ..core.response_headers import validate_response_headers
 from ..core.windows_share import get_share_script_path, execute_share_script, is_windows_10_or_11
 from ..core.platform_utils import is_platform_supported, is_linux
-from processhunter.core.config import ConfigManager
-from processhunter.core.hunter import ProcessHunter
-from processhunter.core.logger import setup_app_logger
+from vendor.processhunter.core.config import ConfigManager
+from vendor.processhunter.core.hunter import ProcessHunter
+from vendor.processhunter.core.logger import setup_app_logger
 
 
 class AppController:

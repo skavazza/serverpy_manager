@@ -53,4 +53,4 @@ validação manual completa do executável.
 
 ## Integrated applications (2026-11-10)
 
-The ServerPy GUI now includes ProcessHunter and SystemRAM tabs. SystemRAM is available on Windows 10/11 and uses the shared PySide6 runtime. The PyInstaller one-folder build collects both modules through the navigation imports.
+The ServerPy GUI now includes ProcessHunter and SystemRAM tabs from `vendor/` snapshots. SystemRAM is available on Windows 10/11 and uses the shared PySide6 runtime. The PyInstaller one-folder build explicitly collects both module packages.

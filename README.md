@@ -18,6 +18,8 @@ arquivos, dispositivos e serviços locais pela interface gráfica.
   transferência de arquivos.
 - **Dispositivos locais:** câmeras, scanners, impressoras, unidades USB e
   consulta de portas com FindPort.
+- **Processos e memória:** monitoramento de processos pelo ProcessHunter e
+  diagnóstico de memória pelo SystemRAM, disponíveis em abas da mesma janela.
 - **Interface:** português e inglês, menus e barra superior com ícones de
   ações rápidas, dicas traduzidas e atalhos de teclado.
 
@@ -60,6 +62,8 @@ py -m venv venv
 
 O FindPort incluído para clones limpos fica em `vendor/findport/`; o checkout
 aninhado `findport/` é apenas uma alternativa para desenvolvimento no workspace.
+ProcessHunter e SystemRAM também são mantidos como cópias em `vendor/` e não
+dependem de checkouts aninhados.
 O scrcpy é obtido como executável externo oficial ou binário do sistema.
 Consulte [Third-Party Notices](THIRD_PARTY_NOTICES.md) para detalhes de
 proveniência e limites da cópia privada.

@@ -22,11 +22,11 @@ from .access import FolderAccessPanel
 from .profiles import ProfilesPanel
 from .action_toolbar import create_action_toolbar
 from .vpn_panel import VPNPanel
-from processhunter.core.config import ConfigManager
-from processhunter.core.hunter import ProcessHunter
-from processhunter.core.autostart import WindowsAutostart
-from processhunter.core.logger import setup_app_logger
-from processhunter.ui.main_window import MainWindow as ProcessHunterWindow
+from vendor.processhunter.core.config import ConfigManager
+from vendor.processhunter.core.hunter import ProcessHunter
+from vendor.processhunter.core.autostart import WindowsAutostart
+from vendor.processhunter.core.logger import setup_app_logger
+from vendor.processhunter.ui.main_window import MainWindow as ProcessHunterWindow
 
 
 class MainNavigation:
@@ -130,7 +130,7 @@ class MainNavigation:
         self.pages['ProcessHunter'].layout().addWidget(self.process_hunter)
         self.systemram = None
         if sys.platform == 'win32':
-            from systemram.gui.main_window import MainWindow as SystemRAMWindow
+            from vendor.systemram.gui.main_window import MainWindow as SystemRAMWindow
             self.systemram = SystemRAMWindow(embedded=True, parent=self.pages['SystemRAM'])
             self.pages['SystemRAM'].layout().addWidget(self.systemram)
         else:
