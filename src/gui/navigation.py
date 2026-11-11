@@ -5,6 +5,7 @@ from PySide6.QtGui import QAction, QActionGroup
 from PySide6.QtWidgets import (
     QLabel, QPushButton, QScrollArea, QTabWidget, QVBoxLayout, QWidget,
 )
+import sys
 from .android_panel import AndroidDevicePanel
 from .storage import StoragePanel
 from .shares import SharedFoldersPanel
@@ -21,12 +22,17 @@ from .access import FolderAccessPanel
 from .profiles import ProfilesPanel
 from .action_toolbar import create_action_toolbar
 from .vpn_panel import VPNPanel
+from processhunter.core.config import ConfigManager
+from processhunter.core.hunter import ProcessHunter
+from processhunter.core.autostart import WindowsAutostart
+from processhunter.core.logger import setup_app_logger
+from processhunter.ui.main_window import MainWindow as ProcessHunterWindow
 
 
 class MainNavigation:
     TAB_TITLES = (
         'Server', 'Files', 'Printers', 'Scanners', 'Cameras', 'USB devices',
-        'Android', 'Security', 'Settings', 'Network', 'VPN and tunnels',
+        'Android', 'Security', 'Settings', 'Network', 'VPN and tunnels', 'ProcessHunter', 'SystemRAM',
     )
 
     def __init__(self, controller):
@@ -113,6 +119,27 @@ class MainNavigation:
         self.pages['Network'].layout().addWidget(self.network_tabs)
         self.vpn = VPNPanel(controller, self.pages['VPN and tunnels'])
         self.pages['VPN and tunnels'].layout().addWidget(self.vpn)
+        self.process_hunter = ProcessHunterWindow(
+            config_manager=controller.processhunter_config,
+            hunter=controller.process_hunter,
+            autostart=WindowsAutostart(app_name='ProcessHunter'),
+            logger=controller.processhunter_logger,
+            embedded=True,
+            parent=self.pages['ProcessHunter'],
+        )
+        self.pages['ProcessHunter'].layout().addWidget(self.process_hunter)
+        self.systemram = None
+        if sys.platform == 'win32':
+            from systemram.gui.main_window import MainWindow as SystemRAMWindow
+            self.systemram = SystemRAMWindow(embedded=True, parent=self.pages['SystemRAM'])
+            self.pages['SystemRAM'].layout().addWidget(self.systemram)
+        else:
+            support = QLabel(
+                'SystemRAM requires Windows 10 or 11. / SystemRAM requer Windows 10 ou 11.',
+                self.pages['SystemRAM'],
+            )
+            support.setWordWrap(True)
+            self.pages['SystemRAM'].layout().addWidget(support)
         self.tabs.currentChanged.connect(self.load_tab)
 
         for page in self.pages.values():
@@ -243,6 +270,7 @@ class MainNavigation:
         self.shared_folders.reload()
         self.network.retranslate()
         self.vpn.retranslate()
+        # ProcessHunter keeps its native Portuguese controls and persisted configuration.
         self.activity.retranslate()
         self.ssh.retranslate()
         self.network_tabs.setTabText(0, language.text('Activity'))

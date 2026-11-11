@@ -49,3 +49,8 @@ Os resultados locais ficam em `artifacts/windows-*.log`,
 `artifacts/windows-executable-check.json` e `artifacts/windows-packaging-smoke/`.
 Ainda não houve homologação do pacote em uma instalação Windows limpa nem
 validação manual completa do executável.
+
+
+## Integrated applications (2026-11-10)
+
+The ServerPy GUI now includes ProcessHunter and SystemRAM tabs. SystemRAM is available on Windows 10/11 and uses the shared PySide6 runtime. The PyInstaller one-folder build collects both modules through the navigation imports.

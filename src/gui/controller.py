@@ -25,6 +25,9 @@ from ..core.startup import StartupRegistration
 from ..core.response_headers import validate_response_headers
 from ..core.windows_share import get_share_script_path, execute_share_script, is_windows_10_or_11
 from ..core.platform_utils import is_platform_supported, is_linux
+from processhunter.core.config import ConfigManager
+from processhunter.core.hunter import ProcessHunter
+from processhunter.core.logger import setup_app_logger
 
 
 class AppController:
@@ -34,7 +37,9 @@ class AppController:
     """
     PERSISTED_CHECKS = ('chk_render_pages', 'chk_allow_mod', 'chk_intent', 'chk_auth', 'chk_whitelist', 'chk_tls', 'chk_verify_header', 'chk_cloudflare_tunnel', 'chk_rate_limit', 'chk_custom_charset', 'chk_custom_headers', 'groupBox_schedule')
     def __init__(self):
-        self.app = QApplication.instance() or QApplication(sys.argv)
+        self.open_systemram_on_start = '--open-systemram' in sys.argv[1:]
+        qt_args = [arg for arg in sys.argv if arg != '--open-systemram']
+        self.app = QApplication.instance() or QApplication(qt_args)
         self.app.setStyle("Fusion")
         self.apply_dark_theme()
         self.setup_app_icon()
@@ -45,6 +50,10 @@ class AppController:
         self.certificate_check = None
 
         self.server_manager = ServerManager()
+        self.processhunter_config = ConfigManager()
+        self.processhunter_config.load()
+        self.process_hunter = ProcessHunter()
+        self.processhunter_logger, _ = setup_app_logger()
         self.cert_path = "server.pem"
         self.cors_config = {
             'origin': '*', 
@@ -80,6 +89,10 @@ class AppController:
         self.windows_share_supported = is_windows_10_or_11()
         self.network_share_supported = is_platform_supported()
         self.navigation = MainNavigation(self)
+        self.app.aboutToQuit.connect(self.stop_processhunter)
+        self.app.aboutToQuit.connect(self.stop_systemram)
+        if self.open_systemram_on_start and self.navigation.systemram:
+            self.navigation.tabs.setCurrentIndex(self.navigation.TAB_TITLES.index('SystemRAM'))
             
         self.ui_translations = self.language.capture(self.window)
 
@@ -114,6 +127,22 @@ class AppController:
 
     def show_about(self):
         AboutDialog(self.window, self.language).exec()
+
+    def stop_processhunter(self):
+        panel = getattr(getattr(self, 'navigation', None), 'process_hunter', None)
+        if panel:
+            if panel.scanner_worker and panel.scanner_worker.isRunning():
+                panel.scanner_worker.wait(1500)
+            if panel.sentinel_worker.isRunning():
+                panel.sentinel_worker.stop()
+                panel.sentinel_worker.wait(2000)
+
+    def stop_systemram(self):
+        panel = getattr(getattr(self, 'navigation', None), 'systemram', None)
+        if panel:
+            for worker in (panel.worker, panel.action_worker):
+                if worker and worker.isRunning():
+                    worker.wait(15000)
 
     def show_qr_code(self, url=None, temporary=False):
         if not self.server_manager.is_running:
