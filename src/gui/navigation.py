@@ -127,12 +127,12 @@ class MainNavigation:
             embedded=True,
             parent=self.pages['ProcessHunter'],
         )
-        self.pages['ProcessHunter'].layout().addWidget(self.process_hunter)
+        self.pages['ProcessHunter'].layout().addWidget(self.process_hunter, 1)
         self.systemram = None
         if sys.platform == 'win32':
             from vendor.systemram.gui.main_window import MainWindow as SystemRAMWindow
             self.systemram = SystemRAMWindow(embedded=True, parent=self.pages['SystemRAM'])
-            self.pages['SystemRAM'].layout().addWidget(self.systemram)
+            self.pages['SystemRAM'].layout().addWidget(self.systemram, 1)
         else:
             support = QLabel(
                 'SystemRAM requires Windows 10 or 11. / SystemRAM requer Windows 10 ou 11.',
@@ -142,8 +142,9 @@ class MainNavigation:
             self.pages['SystemRAM'].layout().addWidget(support)
         self.tabs.currentChanged.connect(self.load_tab)
 
-        for page in self.pages.values():
-            page.layout().addStretch()
+        for title, page in self.pages.items():
+            if title not in ('ProcessHunter', 'SystemRAM'):
+                page.layout().addStretch()
         # All controls have moved out of the original scroll container.
         original_scroll.hide()
         original_scroll.deleteLater()

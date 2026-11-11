@@ -1,6 +1,6 @@
 from datetime import datetime
 from PySide6.QtWidgets import (
-    QMainWindow, QTabWidget, QMessageBox, QLabel, QApplication
+    QMainWindow, QTabWidget, QMessageBox, QLabel, QApplication, QSizePolicy
 )
 from PySide6.QtGui import QAction, QKeySequence, QFont, QCursor
 from PySide6.QtCore import QThread, Signal, Qt
@@ -67,6 +67,7 @@ class MainWindow(QMainWindow):
         self.embedded = embedded
         if embedded:
             self.setWindowFlags(Qt.WindowType.Widget)
+            self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.setWindowTitle("PyRAMMap - SystemRAM")
         self.resize(950, 680)
 

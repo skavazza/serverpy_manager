@@ -10,7 +10,7 @@ from PySide6.QtGui import QCloseEvent, QFont, QIcon
 from PySide6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, QPushButton,
     QLabel, QTextEdit, QCheckBox, QSpinBox, QSplitter, QMessageBox, QFrame,
-    QApplication
+    QApplication, QSizePolicy
 )
 from vendor.processhunter.core.config import ConfigManager, normalize_target_name
 from vendor.processhunter.core.hunter import ProcessHunter, ProcessInfo, KillResult
@@ -42,6 +42,8 @@ class MainWindow(QMainWindow):
         self.embedded = embedded
         if embedded:
             self.setWindowFlags(Qt.WindowType.Widget)
+            self.setMinimumSize(0, 0)
+            self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Expanding)
         self.config_manager = config_manager
         self.hunter = hunter
         self.autostart = autostart
@@ -68,8 +70,6 @@ class MainWindow(QMainWindow):
 
     def _init_ui(self) -> None:
         central_widget = QWidget(self)
-        if self.embedded:
-            central_widget.setMinimumSize(0, 0)
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
         main_layout.setSpacing(10)
@@ -77,8 +77,6 @@ class MainWindow(QMainWindow):
 
         # 1. Top Header & Control Bar
         header_frame = QFrame()
-        if self.embedded:
-            header_frame.setMinimumWidth(0)
         header_frame.setObjectName("header_card")
         header_layout = QHBoxLayout(header_frame)
         header_layout.setContentsMargins(12, 8, 12, 8)
@@ -110,18 +108,11 @@ class MainWindow(QMainWindow):
 
         # 2. Central Splitter (Left: Targets, Right: Active Processes)
         splitter = QSplitter(Qt.Orientation.Horizontal)
-        if self.embedded:
-            splitter.setOrientation(Qt.Orientation.Vertical)
-            splitter.setMinimumWidth(0)
 
         self.target_list_widget = TargetListWidget()
-        if self.embedded:
-            self.target_list_widget.setMinimumWidth(0)
         splitter.addWidget(self.target_list_widget)
 
         self.process_table_widget = ProcessTableWidget()
-        if self.embedded:
-            self.process_table_widget.setMinimumWidth(0)
         splitter.addWidget(self.process_table_widget)
 
         splitter.setSizes([450, 600])
@@ -129,8 +120,6 @@ class MainWindow(QMainWindow):
 
         # 3. Bottom Section: Log and Preferences
         bottom_card = QFrame()
-        if self.embedded:
-            bottom_card.setMinimumWidth(0)
         bottom_card.setObjectName("bottom_card")
         bottom_layout = QVBoxLayout(bottom_card)
         bottom_layout.setContentsMargins(10, 8, 10, 8)
@@ -161,34 +150,30 @@ class MainWindow(QMainWindow):
         bottom_layout.addWidget(self.log_view)
 
         # Settings bar
-        settings_layout = QVBoxLayout()
-        settings_primary = QHBoxLayout()
+        settings_layout = QHBoxLayout()
         self.chk_autostart = QCheckBox("Iniciar com o Windows (Minimizado na bandeja)")
         self.chk_autostart.toggled.connect(self._on_autostart_toggled)
-        settings_primary.addWidget(self.chk_autostart)
+        settings_layout.addWidget(self.chk_autostart)
 
-        settings_primary.addSpacing(20)
+        settings_layout.addSpacing(20)
 
         interval_label = QLabel("Intervalo da Sentinela:")
         interval_label.setProperty("subtitle", "true")
-        settings_primary.addWidget(interval_label)
+        settings_layout.addWidget(interval_label)
 
         self.spin_interval = QSpinBox()
         self.spin_interval.setRange(1, 300)
         self.spin_interval.setSuffix(" seg")
         self.spin_interval.valueChanged.connect(self._on_interval_changed)
-        settings_primary.addWidget(self.spin_interval)
-        settings_primary.addStretch()
-        settings_layout.addLayout(settings_primary)
+        settings_layout.addWidget(self.spin_interval)
 
-        settings_secondary = QHBoxLayout()
+        settings_layout.addSpacing(20)
 
-        self.chk_notify = QCheckBox("Notificar na área de trabalho ao caçar")
+        self.chk_notify = QCheckBox("Notificar na ?rea de trabalho ao ca?ar")
         self.chk_notify.toggled.connect(self._on_notify_toggled)
-        settings_secondary.addWidget(self.chk_notify)
+        settings_layout.addWidget(self.chk_notify)
 
-        settings_secondary.addStretch()
-        settings_layout.addLayout(settings_secondary)
+        settings_layout.addStretch()
         bottom_layout.addLayout(settings_layout)
 
         main_layout.addWidget(bottom_card, stretch=1)
